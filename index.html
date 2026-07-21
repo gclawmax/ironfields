@@ -5211,22 +5211,22 @@ function buildRoster() {
     const cls2 = MECH_CLASSES[mech.cls];
     let statusHtml = '';
     if (mech.shutDown) {
-      statusHtml += `<div class="sr" style="color:var(--red);margin-top:2px;font-size:8px;letter-spacing:1px;">
+      statusHtml += `<div class="sr" style="color:var(--red);margin-top:2px;font-size:var(--log-size);letter-spacing:1px;">
         <span>⚠ SHUTDOWN</span><span>MISSES THIS TURN</span></div>`;
     }
     if (mech.legDestroyed) {
-      statusHtml += `<div class="sr" style="color:var(--red);margin-top:2px;font-size:8px;">
+      statusHtml += `<div class="sr" style="color:var(--red);margin-top:2px;font-size:var(--log-size);">
         <span>⚠ LEG</span><span>MOVEMENT HALVED</span></div>`;
     }
     if (cls2?.weapons?.includes('ecm_suite') && !mech.destroyed) {
-      statusHtml += `<div class="sr" style="color:#88aaff;margin-top:2px;font-size:8px;">
+      statusHtml += `<div class="sr" style="color:#88aaff;margin-top:2px;font-size:var(--log-size);">
         <span>⊕ ECM</span><span>ACTIVE</span></div>`;
     }
     if (mech.disabledLocs && mech.disabledLocs.length > 0) {
       cls2?.weapons.forEach(wk => {
         if (mechWeaponDisabled(mech, wk)) {
           const w = WEAPONS[wk];
-          statusHtml += `<div class="sr" style="color:var(--red);margin-top:2px;font-size:8px;">
+          statusHtml += `<div class="sr" style="color:var(--red);margin-top:2px;font-size:var(--log-size);">
             <span>⚠ ${w?.label ?? wk}</span><span>OFFLINE</span></div>`;
         }
       });
@@ -5248,8 +5248,8 @@ function buildRoster() {
     const pStr = mech.piloting ?? 0;
     const skillColor = (gStr > 0 || pStr > 0) ? 'var(--ph)' : 'var(--dim)';
     const pilotHtml = '<div class="sr" style="margin-bottom:2px;border-bottom:1px solid var(--bdr);padding-bottom:4px;">' +
-      '<span style="color:' + skillColor + ';letter-spacing:1px;font-size:8px;">' + (mech.pilotName ?? '\u2014') + '</span>' +
-      '<span style="color:' + skillColor + ';font-size:8px;">GUN:' + gStr + '  PIL:' + pStr + '</span>' +
+      '<span style="color:' + skillColor + ';letter-spacing:1px;font-size:var(--log-size);">' + (mech.pilotName ?? '\u2014') + '</span>' +
+      '<span style="color:' + skillColor + ';font-size:var(--log-size);">GUN:' + gStr + '  PIL:' + pStr + '</span>' +
       '</div>';
 
     // Detailed Armor Grid
@@ -5265,7 +5265,7 @@ function buildRoster() {
       armorGridHtml += `<div class="mc-armor-cell ${isCrit?'crit':''}">
         <span class="loc">${loc}</span>
         <span class="val">${cur}/${max}</span>
-        <span class="val" style="color:var(--dim);font-size:6px;display:block;">${curStr}/${maxStr}</span>
+        <span class="val" style="color:var(--dim);font-size:var(--log-size);display:block;">${curStr}/${maxStr}</span>
       </div>`;
     });
     armorGridHtml += '</div>';
