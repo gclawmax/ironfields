@@ -376,6 +376,9 @@ function selectDifficulty(level) {
     expert:     'Expert AI — utility scoring, personality profiles, Web Worker.'
   };
   document.getElementById('diff-desc').textContent = descs[level] || '';
+
+  // Start the game with the selected difficulty
+  startVsAIWithDifficulty();
 }
 
 function buildMapPresetsUI(containerId) {
@@ -1022,14 +1025,43 @@ async function doStartGame() {
 }
 
 // ── VS AI — start without a second human player ───────────────────
+// Shows the difficulty selector and waits for the user to pick one.
 async function doStartVsAI() {
   if (!isHost) { addLog('Only the host can start VS AI.', 'bad'); return; }
 
-  // Show the difficulty selector
+  // Show the difficulty selector and set initial button state (without starting)
   const diffSection = document.getElementById('ai-difficulty-section');
   if (diffSection) diffSection.style.display = 'block';
-  selectDifficulty(aiDifficulty);  // set initial selection state
+  highlightDifficultyButton(aiDifficulty);  // just highlight, don't start
 
+  // Don't start yet — wait for the user to click a difficulty button
+  return;
+}
+
+// Highlight a difficulty button without starting the game
+function highlightDifficultyButton(level) {
+  aiDifficulty = level;
+  ['beginner','intermediate','advanced','expert'].forEach(l => {
+    const btn = document.getElementById('diff-' + l);
+    if (btn) {
+      btn.classList.toggle('on', l === level);
+      btn.style.borderColor = l === level ? 'var(--ph)' : '';
+      btn.style.color = l === level ? 'var(--ph)' : '';
+    }
+  });
+  // Update description
+  const descs = {
+    beginner:   'Basic "rush and blast" AI — great for learning the game.',
+    intermediate: 'Context-aware AI that uses the Blackboard for situational awareness.',
+    advanced:   'Advanced tactics — weapon arc analysis and heat management.',
+    expert:     'Expert AI — utility scoring, personality profiles, Web Worker.'
+  };
+  const descEl = document.getElementById('diff-desc');
+  if (descEl) descEl.textContent = descs[level] || '';
+}
+
+// ── Start VS AI with a chosen difficulty (called by selectDifficulty) ──
+async function startVsAIWithDifficulty() {
   showSync('Starting VS AI…');
 
   // Claim both seats so the game can start (host = P1, AI = P2)
