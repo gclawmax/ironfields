@@ -2215,9 +2215,17 @@ async function resolveTurn(plans) {
   isResolving = true;
   addLog(`── RESOLVING TURN ${turnNumber} ──`, 'ok');
 
+  // Tag each plan as AI or human for log coloring
+  const AI_UUID = '00000000-0000-0000-0000-000000000002';
+  const plansWithTag = plans.map(row => ({
+    ...row,
+    isAI: row.profile_id === AI_UUID
+  }));
+
   // 1. Apply movement orders from both plans
-  plans.forEach(row => {
+  plansWithTag.forEach(row => {
     const orders = row.plan?.mech_orders || [];
+    const isEnemy = row.isAI;
     orders.forEach(order => {
       const m = mechs.find(x => x.id === order.mech_id);
       if (!m) return;
@@ -2228,6 +2236,12 @@ async function resolveTurn(plans) {
       m.mpSpentLastTurn = order.mp_spent ?? m.mpSpent;
       m.lastMovePath    = order.path || null;  // full route for trail rendering
       m.mpSpent = 0;
+
+      // Log enemy movement in red
+      if (isEnemy) {
+        const moveStr = order.mp_spent > 0 ? ` (${order.mp_spent} MP)` : '';
+        addLog(`${m.name}: moved to (${order.wx}, ${order.wy}), facing ${order.final_facing}°${moveStr}`, 'bad');
+      }
     });
   });
 
@@ -2306,10 +2320,12 @@ async function resolveTurn(plans) {
     }
   }
 
-  // 2. Resolve combat — collect all fire orders from both plans
+  // 2. Resolve combat — collect all fire orders from both plans, tagged by source
   const allFireOrders = [];
-  plans.forEach(row => {
-    (row.plan?.fire_orders || []).forEach(fo => allFireOrders.push(fo));
+  plansWithTag.forEach(row => {
+    (row.plan?.fire_orders || []).forEach(fo => {
+      allFireOrders.push({ ...fo, isAI: row.isAI });
+    });
   });
 
   if (allFireOrders.length > 0) {
@@ -2320,7 +2336,8 @@ async function resolveTurn(plans) {
       if (!attacker || !target) return;
       if (attacker.destroyed || target.destroyed) return;
       const lines = resolveFire(attacker, target, fo.weapon);
-      lines.forEach(l => addLog(l, l.includes('ELIMINATED') ? 'bad' : ''));
+      // Enemy fire in red, everything else in default
+      lines.forEach(l => addLog(l, l.includes('ELIMINATED') ? 'bad' : (fo.isAI ? 'bad' : '')));
     });
 
     // 3. Check win condition
