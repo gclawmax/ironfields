@@ -1334,23 +1334,26 @@ function aiGeneratePlanV02() {
         // Move to a nearby vertex that gives a better angle or terrain advantage
         // (e.g., higher ground, cover, or a wider firing arc)
         const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
-        if (path && path.length > 1) {
-          // Try a few nearby vertices along the path (or random if no path)
-          const candidates = [];
-          if (path.length > 2) {
-            // Take 1-2 steps along the path toward enemy (better angle)
-            const steps = Math.min(2, Math.floor(mpAvail / 2));
-            for (let step = 1; step <= steps; step++) {
-              const vk = path[step];
-              const vPos = vertByKey.get(vk);
-              if (vPos) candidates.push(vPos);
-            }
+
+        // Build candidate list from path and adjacent vertices
+        const candidates = [];
+        const myKey = vertKey(m.wx, m.wy);
+
+        // 1. Steps along the astar path toward enemy (better angle)
+        if (path && path.length > 2) {
+          const steps = Math.min(2, Math.floor(mpAvail / 2));
+          for (let step = 1; step <= steps; step++) {
+            const vk = path[step];
+            const vPos = vertByKey.get(vk);
+            if (vPos) candidates.push(vPos);
           }
-          // Also try adjacent vertices for angle adjustment
-          const dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,1],[-1,1],[1,-1]];
-          dirs.forEach(([dq, dr]) => {
-            const nvk = vertKey(m.wx + dq, m.wy + dr);
-            const nv = vertByKey.get(nvk);
+        }
+
+        // 2. Adjacent vertices via the pre-built adjacency map
+        const adjList = vertNeighbours.get(myKey);
+        if (adjList) {
+          adjList.forEach(adjK => {
+            const nv = vertByKey.get(adjK);
             if (nv) {
               const blocked = mechs.some(other =>
                 other.id !== m.id && !other.destroyed &&
@@ -1359,31 +1362,31 @@ function aiGeneratePlanV02() {
               if (!blocked) candidates.push(nv);
             }
           });
+        }
 
-          // Pick the candidate that improves our position
-          let bestCand = null, bestScore = -1;
-          candidates.forEach(cand => {
-            const distToTarget = hexDist(cand, target);
-            const angleDiff = Math.abs(
-              ((bestFacing - target.facing + 540) % 360) - 180
-            );
-            // Score: prefer closer to target (but not too close), better facing
-            const distScore = Math.max(0, 1 - distToTarget / 15);
-            const facingScore = Math.max(0, 1 - angleDiff / 180);
-            const score = distScore * 0.5 + facingScore * 0.5;
-            if (score > bestScore) {
-              bestScore = score;
-              bestCand = cand;
-            }
-          });
+        // Pick the candidate that improves our position
+        let bestCand = null, bestScore = -1;
+        candidates.forEach(cand => {
+          const distToTarget = hexDist(cand, target);
+          const angleDiff = Math.abs(
+            ((bestFacing - target.facing + 540) % 360) - 180
+          );
+          // Score: prefer closer to target (but not too close), better facing
+          const distScore = Math.max(0, 1 - distToTarget / 15);
+          const facingScore = Math.max(0, 1 - angleDiff / 180);
+          const score = distScore * 0.5 + facingScore * 0.5;
+          if (score > bestScore) {
+            bestScore = score;
+            bestCand = cand;
+          }
+        });
 
-          if (bestCand) {
-            const midWx = (m.wx + bestCand.wx) / 2, midWy = (m.wy + bestCand.wy) / 2;
-            const cost = terrainMpCost(midWx, midWy);
-            if (cost <= mpAvail) {
-              destWx = bestCand.wx; destWy = bestCand.wy; mpSpent = cost;
-              visitedPath = [{ wx: m.wx, wy: m.wy }, { wx: destWx, wy: destWy }];
-            }
+        if (bestCand) {
+          const midWx = (m.wx + bestCand.wx) / 2, midWy = (m.wy + bestCand.wy) / 2;
+          const cost = terrainMpCost(midWx, midWy);
+          if (cost <= mpAvail) {
+            destWx = bestCand.wx; destWy = bestCand.wy; mpSpent = cost;
+            visitedPath = [{ wx: m.wx, wy: m.wy }, { wx: destWx, wy: destWy }];
           }
         }
       }
