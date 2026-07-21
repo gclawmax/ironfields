@@ -6,592 +6,7 @@
 <title>IRONFIELD</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-  :root {
-    --ph:#00ff88;--phd:#00994d;--phf:#001a0d;
-    --red:#ff4444;--rdd:#6a1a1a;
-    --amb:#ffaa00;--blu:#88aaff;
-    --bg:#060a07;--pan:#08100a;--bdr:#14221a;
-    --txt:#00cc66;--dim:#005522;
-    --ui-size: 1;        /* text scale multiplier, applied via JS */
-    --log-size: 10px;    /* log entry font size */
-  }
-  /* ── LIGHT THEME ─────────────────────────────────────────────── */
-  body.theme-light {
-    --ph:#007733;--phd:#005522;--phf:#e8f8ee;
-    --red:#cc0000;--rdd:#880000;
-    --amb:#885500;--blu:#334488;
-    --bg:#e8f0eb;--pan:#d4e4da;--bdr:#8aaa96;
-    --txt:#004422;--dim:#336644;
-  }
-  /* ── SETTINGS COG ───────────────────────────────────────────────── */
-  #settings-cog {
-    position:fixed;bottom:14px;right:14px;z-index:950;
-    width:32px;height:32px;border-radius:50%;
-    background:rgba(8,16,10,0.85);border:1px solid var(--bdr);
-    color:var(--dim);font-size:16px;cursor:pointer;
-    display:flex;align-items:center;justify-content:center;
-    transition:color .15s, border-color .15s, transform .15s;
-    backdrop-filter:blur(6px);
-    box-shadow:0 2px 12px rgba(0,0,0,0.4);
-    filter:none !important;  /* immune to body brightness filter */
-  }
-  #settings-cog:hover{color:var(--ph);border-color:var(--phd);transform:rotate(30deg);}
-  #settings-panel {
-    position:fixed;bottom:56px;right:14px;z-index:950;
-    background:var(--pan);border:1px solid var(--bdr);
-    padding:14px 16px;width:220px;
-    display:flex;flex-direction:column;gap:10px;
-    box-shadow:0 4px 24px rgba(0,0,0,0.5);
-    backdrop-filter:blur(8px);
-    transform:translateY(8px);opacity:0;
-    pointer-events:none;transition:all .15s;
-    filter:none !important;  /* immune to body brightness filter */
-  }
-  #settings-panel.open{transform:translateY(0);opacity:1;pointer-events:all;}
-  .sett-title{
-    font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:3px;
-    color:var(--dim);border-bottom:1px solid var(--bdr);padding-bottom:6px;
-  }
-  .sett-row{display:flex;flex-direction:column;gap:5px;}
-  .sett-label{font-size:8px;color:var(--dim);letter-spacing:2px;}
-  .sett-btns{display:flex;gap:4px;}
-  .sett-btn{
-    font-family:'Share Tech Mono',monospace;font-size:10px;
-    background:transparent;border:1px solid var(--bdr);color:var(--dim);
-    padding:4px 8px;cursor:pointer;transition:all .12s;flex:1;
-    display:flex;align-items:center;justify-content:center;
-  }
-  .sett-btn:hover{color:var(--ph);border-color:var(--phd);}
-  .sett-btn.active{color:var(--ph);border-color:var(--ph);background:rgba(0,255,136,0.07);}
-  .sett-slider{
-    width:100%;accent-color:var(--ph);cursor:pointer;
-    height:4px;
-  }
-  /* ── LOG CONTROLS (kept for legacy, now hidden — settings panel replaces) */
-  .log-controls { display:none; }
-  /* log text colours — legible on both dark and light themes */
-  .le     { color: var(--txt) !important; }
-  .le.ok  { color: var(--phd) !important; }
-  .le.bad { color: var(--red) !important; }
-  .le .ts { color: var(--dim) !important; opacity:0.7; }
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{
-    background:var(--bg);color:var(--txt);
-    font-family:'Share Tech Mono',monospace;
-    height:100vh;display:flex;flex-direction:column;
-    overflow:hidden;cursor:crosshair;
-  }
-  body::before{
-    content:'';position:fixed;inset:0;pointer-events:none;z-index:900;
-    background:repeating-linear-gradient(0deg,transparent,transparent 2px,
-      rgba(0,0,0,0.055) 2px,rgba(0,0,0,0.055) 4px);
-  }
-  body::after{
-    content:'';position:fixed;inset:0;pointer-events:none;z-index:901;
-    background:radial-gradient(ellipse at 50% 48%,transparent 50%,rgba(0,0,0,0.72) 100%);
-  }
-  header{
-    display:flex;align-items:center;justify-content:space-between;
-    padding:7px 16px;border-bottom:1px solid var(--bdr);
-    background:var(--pan);flex-shrink:0;z-index:10;
-  }
-  .logo{
-    font-family:'Orbitron',sans-serif;font-weight:900;font-size:17px;
-    letter-spacing:6px;color:var(--ph);
-    text-shadow:0 0 14px var(--ph),0 0 30px rgba(0,255,136,.22);
-  }
-  .logo em{color:var(--phd);font-style:normal;font-weight:400;}
-  .hstat{display:flex;gap:22px;font-size:var(--log-size);color:var(--dim);}
-  .hstat b{color:var(--ph);font-weight:normal;}
-  .blink{animation:bl 1.1s step-end infinite;}
-  @keyframes bl{50%{opacity:0;}}
-  .main{display:flex;flex:1;overflow:hidden;}
-  .side{
-    width:200px;background:var(--pan);border-right:1px solid var(--bdr);
-    display:flex;flex-direction:column;flex-shrink:0;
-    position:relative;overflow:hidden;
-    min-width:160px;max-width:500px;
-  }
-  .ptitle{
-    font-family:'Orbitron',sans-serif;font-size:calc(var(--log-size) * 0.8);letter-spacing:3px;
-    color:var(--dim);padding:9px 12px 6px;border-bottom:1px solid var(--bdr);
-  }
-  .mlist{padding:6px;display:flex;flex-direction:column;gap:4px;overflow-y:auto;flex:1;}
-  .mc{border:1px solid var(--bdr);padding:7px 9px;cursor:pointer;
-      transition:border-color .12s,background .12s;position:relative;}
-  .mc::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
-  .mc.p1::before{background:var(--ph);} .mc.p2::before{background:var(--red);}
-  .mc.sel{border-color:var(--ph);background:rgba(0,255,136,.05);}
-  .mc.p2.sel{border-color:var(--red);background:rgba(255,68,68,.05);}
-  .mn{font-family:'Orbitron',sans-serif;font-size:var(--log-size);font-weight:700;
-      letter-spacing:2px;margin-bottom:3px;}
-  .mc.p1 .mn{color:var(--ph);} .mc.p2 .mn{color:var(--red);}
-  .ms{font-size:calc(var(--log-size) * 0.9);color:var(--dim);line-height:1.75;}
-  .ms .v{color:var(--txt);}
-  .sr{display:flex;justify-content:space-between;}
-  .carea{flex:1;position:relative;overflow:hidden;}
-  canvas{display:block;}
-  .tbar{
-    position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
-    display:flex;gap:3px;background:rgba(6,10,7,.95);
-    border:1px solid var(--bdr);padding:7px;z-index:10;
-    backdrop-filter:blur(8px);
-  }
-  .tb{
-    font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;
-    color:var(--dim);background:transparent;border:1px solid var(--bdr);
-    padding:5px 11px;cursor:pointer;transition:all .12s;
-  }
-  .tb:hover{color:var(--ph);border-color:var(--phd);}
-  .tb.on{color:var(--ph);border-color:var(--ph);background:rgba(0,255,136,.07);
-         box-shadow:0 0 8px rgba(0,255,136,.15);}
-  .tb.amb{color:var(--amb);border-color:#4a3000;}
-  .tb.amb:hover,.tb.amb.on{border-color:var(--amb);background:rgba(255,170,0,.07);}
-  .tb.los{color:var(--blu);border-color:#1e2244;}
-  .tb.los:hover,.tb.los.on{border-color:var(--blu);background:rgba(136,170,255,.07);}
-  .tb.fire{color:#ff6644;border-color:#3a1100;}
-  .tb.fire:hover,.tb.fire.on{border-color:#ff6644;background:rgba(255,102,68,.07);
-    box-shadow:0 0 8px rgba(255,102,68,.18);}
-  #b-terrain{color:#88ddff;border-color:#1e3344;}
-  #b-terrain:hover,#b-terrain.on{border-color:#88ddff;background:rgba(136,221,255,.07);
-    box-shadow:0 0 8px rgba(136,221,255,.15);}
-  /* Roster card fire-target indicator */
-  .mc.fire-target{border-color:#ff6644 !important;background:rgba(255,102,68,.07) !important;}
-  .mc.fire-target::after{
-    content:'TARGET';position:absolute;right:6px;top:6px;
-    font-size:7px;letter-spacing:1px;color:#ff6644;
-  }
-  /* ── WEAPON PICKER ─────────────────────────────────────────── */
-  #wpicker{
-    border-top:1px solid var(--bdr);padding:8px 10px;display:none;
-    flex-direction:column;gap:4px;
-  }
-  #wpicker.visible{ display:flex; }
-  .wp-title{
-    font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:3px;
-    color:var(--dim);margin-bottom:3px;
-  }
-  .wp-target{
-    font-size:9px;color:#ff6644;letter-spacing:1px;margin-bottom:4px;
-    min-height:12px;
-  }
-  .wp-btn{
-    background:transparent;border:1px solid var(--bdr);
-    color:var(--dim);font-family:'Share Tech Mono',monospace;font-size:9px;
-    padding:5px 7px;cursor:pointer;text-align:left;
-    transition:all .1s;line-height:1.5;
-  }
-  .wp-btn:hover:not(:disabled){ border-color:var(--phd);color:var(--txt); }
-  .wp-btn.sel{
-    border-color:#ff6644;color:#ff6644;
-    background:rgba(255,102,68,0.08);
-    box-shadow:0 0 6px rgba(255,102,68,0.15);
-  }
-  .wp-btn:disabled{
-    opacity:0.28;cursor:not-allowed;
-  }
-  .wp-btn.disabled-weapon{
-    opacity:0.45;cursor:not-allowed;
-    border-color:var(--rdd) !important;
-    color:var(--red) !important;
-  }
-  .wp-btn.disabled-weapon .wstats{
-    color:rgba(255,68,68,0.5) !important;
-  }
-  .wp-btn .wlabel{ display:block;font-weight:bold;letter-spacing:1px; }
-  .wp-btn .wstats{ display:block;color:var(--dim);font-size:8px; }
-  .wp-btn.sel .wstats{ color:rgba(255,102,68,0.7); }
-  .wp-btn:hover:not(:disabled) .wstats{ color:var(--dim); }
-  .wp-btn .wtn{
-    float:right;font-size:10px;font-weight:bold;
-  }
-  .wp-btn.sel .wtn{ color:#ff6644; }
-  .wp-btn .wtn.ok { color:var(--ph); }
-  .wp-btn .wtn.bad{ color:var(--red); }
-  .wp-hint{
-    font-size:8px;color:var(--dim);letter-spacing:1px;
-    margin-top:2px;text-align:center;min-height:11px;
-  }
-  .wp-clear{
-    background:transparent;border:1px solid var(--bdr);color:var(--dim);
-    font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:1px;
-    padding:3px 7px;cursor:pointer;margin-top:2px;
-    transition:all .1s;
-  }
-  .wp-clear:hover{ border-color:var(--red);color:var(--red); }
-
-  .rpan{
-    width:192px;background:var(--pan);border-left:1px solid var(--bdr);
-    flex-shrink:0;display:flex;flex-direction:column;overflow:hidden;
-    position:relative;min-width:150px;max-width:440px;
-  }
-  #rpan-resizer{
-    position:absolute;left:0;top:0;bottom:0;width:5px;
-    cursor:col-resize;z-index:20;background:transparent;
-    transition:background .15s;
-  }
-  #rpan-resizer:hover,#rpan-resizer.dragging{
-    background:var(--phd);opacity:0.7;
-  }
-  #lpan-resizer{
-    position:absolute;right:0;top:0;bottom:0;width:10px;
-    cursor:col-resize;z-index:100;background:transparent;
-    transition:background .15s;
-  }
-  #lpan-resizer:hover,#lpan-resizer.dragging{
-    background:rgba(0,255,136,0.1);
-  }
-  .ib{padding:8px 11px;border-bottom:1px solid var(--bdr);}
-  .ib .lbl{font-size:8px;color:var(--dim);letter-spacing:2px;margin-bottom:3px;}
-  .ib .val{font-size:12px;color:var(--ph);}
-  .ib .val.r{color:var(--red);}
-  .coord{font-size:10px;color:var(--phd);}
-  .fdisp{
-    font-family:'Orbitron',monospace;font-size:28px;color:var(--amb);
-    text-align:center;padding:3px 0;text-shadow:0 0 12px rgba(255,170,0,.4);
-  }
-  .logarea{flex:1;overflow-y:auto;padding:6px;}
-  .le{font-size:var(--log-size,10px);color:var(--txt);padding:2px 0;
-      border-bottom:1px solid rgba(128,128,128,0.08);line-height:1.5;}
-  .le .ts{color:var(--dim);opacity:0.7;margin-right:4px;}
-  .le.ok{color:var(--phd);} .le.bad{color:var(--red);}
-  .tip{
-    position:absolute;background:rgba(4,8,5,.97);border:1px solid var(--bdr);
-    padding:3px 8px;font-size:9px;color:var(--dim);
-    pointer-events:none;z-index:50;display:none;white-space:nowrap;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.6);
-    backdrop-filter: blur(4px);
-  }
-  .tip.mech-hud {
-    padding: 10px; min-width: 140px; border-color: var(--phd);
-    color: var(--txt); white-space: normal;
-  }
-  .tip.mech-hud .hud-title {
-    font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: bold;
-    letter-spacing: 1px; border-bottom: 1px solid var(--bdr);
-    padding-bottom: 4px; margin-bottom: 6px; display: flex; justify-content: space-between;
-  }
-  .tip.mech-hud .hud-row {
-    display: flex; justify-content: space-between; font-size: 8px; margin-bottom: 2px;
-    color: var(--dim);
-  }
-  .tip.mech-hud .hud-val { color: var(--txt); }
-  .tip.mech-hud .hud-bar-wrap {
-    height: 4px; background: rgba(255,255,255,0.05); border: 1px solid var(--bdr);
-    margin: 2px 0 6px; position: relative; overflow: hidden;
-  }
-  .tip.mech-hud .hud-bar-fill { height: 100%; position: absolute; left: 0; top: 0; }
-  .wheel-wrap{padding:8px 12px;border-bottom:1px solid var(--bdr);
-              display:flex;justify-content:center;}
-  .move-hint{font-size:9px;color:var(--amb);text-align:center;
-             padding:4px 8px;border-bottom:1px solid var(--bdr);min-height:28px;}
-  /* MP bar */
-  .mpbar-wrap{padding:8px 11px;border-bottom:1px solid var(--bdr);}
-  .mpbar-wrap .lbl{font-size:8px;color:var(--dim);letter-spacing:2px;margin-bottom:5px;}
-  .mpbar-row{display:flex;align-items:center;gap:7px;}
-  .mpbar-track{flex:1;height:8px;background:rgba(0,255,136,0.08);
-               border:1px solid var(--bdr);position:relative;overflow:hidden;}
-  .mpbar-fill{height:100%;transition:width .15s;position:absolute;left:0;top:0;}
-  .mpbar-fill.ok {background:var(--ph);}
-  .mpbar-fill.warn{background:var(--amb);}
-  .mpbar-fill.over{background:var(--red);}
-  .mpbar-nums{font-size:10px;color:var(--ph);white-space:nowrap;min-width:52px;text-align:right;}
-  .mpbar-nums.warn{color:var(--amb);} .mpbar-nums.over{color:var(--red);}
-  /* roster MP pip row */
-  .mp-pips{display:flex;gap:2px;flex-wrap:wrap;margin-top:3px;}
-  .pip{width:5px;height:5px;border:1px solid var(--dim);}
-  .pip.used{background:var(--dim);}
-  .pip.free{background:var(--ph);}
-  .pip.cost{background:var(--amb);}
-  .pip.over{background:var(--red);}
-  /* armour / structure bars */
-  .hpbars{margin-top:5px;display:flex;flex-direction:column;gap:3px;}
-  .hprow{display:flex;align-items:center;gap:4px;}
-  .hprow .lbl{font-size:7px;color:var(--dim);letter-spacing:1px;width:10px;flex-shrink:0;}
-  .hptrack{flex:1;height:5px;background:rgba(255,255,255,0.05);
-           border:1px solid var(--bdr);position:relative;overflow:hidden;}
-  .hpfill{height:100%;position:absolute;left:0;top:0;transition:width .2s;}
-  .hpfill.arm{background:#00cc66;}
-  .hpfill.arm.warn{background:var(--amb);}
-  .hpfill.arm.crit{background:var(--red);}
-  .hpfill.str{background:#aa3333;}
-  .hpfill.heat-cool{background:#3399ff;}
-  .hpfill.heat-warm{background:var(--amb);}
-  .hpfill.heat-hot {background:#ff6600;}
-  .hpfill.heat-crit{background:var(--red);animation:heatpulse 0.7s step-end infinite;}
-  @keyframes heatpulse{50%{opacity:0.4;}}
-  .hpnum{font-size:7px;color:var(--dim);white-space:nowrap;min-width:22px;text-align:right;}
-  /* destroyed mech card */
-  .mc.destroyed{opacity:0.28 !important;cursor:default !important;}
-  .mc.destroyed .mn::after{content:' [DESTROYED]';color:var(--red);font-size:7px;letter-spacing:1px;}
-
-  /* ── MAP PAN SCROLLBARS ──────────────────────────────────────── */
-  .carea{ position:relative; overflow:hidden; }
-  .map-hscroll{
-    position:absolute;bottom:0;left:0;right:0;height:12px;
-    background:rgba(0,0,0,0.4);z-index:15;
-    display:flex;align-items:center;padding:0 2px;
-  }
-  .map-vscroll{
-    position:absolute;top:0;right:0;bottom:12px;width:12px;
-    background:rgba(0,0,0,0.4);z-index:15;
-    display:flex;flex-direction:column;align-items:center;padding:2px 0;
-  }
-  .map-hscroll input[type=range], .map-vscroll input[type=range]{
-    -webkit-appearance:none;appearance:none;
-    background:transparent;outline:none;margin:0;padding:0;
-  }
-  .map-hscroll input[type=range]{ width:100%;height:12px; }
-  .map-vscroll input[type=range]{
-    width:100%;height:100%;
-    writing-mode:vertical-lr;direction:rtl;
-  }
-  input[type=range]::-webkit-slider-track{
-    background:rgba(0,255,136,0.08);height:4px;border-radius:0;
-  }
-  input[type=range]::-webkit-slider-thumb{
-    -webkit-appearance:none;width:24px;height:8px;
-    background:var(--phd);border:none;border-radius:0;cursor:pointer;
-  }
-  input[type=range]::-webkit-slider-thumb:hover{ background:var(--ph); }
-  /* ── VICTORY OVERLAY ────────────────────────────────────────── */
-  #scr-victory{
-    position:fixed;inset:0;z-index:800;
-    background:rgba(6,10,7,0.93);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:0;
-  }
-  #scr-victory.hidden{display:none;}
-  .victory-box{
-    background:var(--pan);border:1px solid var(--bdr);
-    padding:44px 56px;display:flex;flex-direction:column;
-    align-items:center;gap:18px;min-width:340px;
-    box-shadow:0 0 60px rgba(0,255,136,0.08);
-  }
-  .victory-title{
-    font-family:'Orbitron',sans-serif;font-weight:900;
-    font-size:11px;letter-spacing:6px;color:var(--dim);
-  }
-  .victory-name{
-    font-family:'Orbitron',sans-serif;font-weight:900;
-    font-size:32px;letter-spacing:4px;color:var(--ph);
-    text-shadow:0 0 24px rgba(0,255,136,0.45);
-    text-align:center;
-  }
-  .victory-name.loss{color:var(--red);text-shadow:0 0 24px rgba(255,68,68,0.35);}
-  .victory-sub{
-    font-size:9px;color:var(--dim);letter-spacing:3px;text-align:center;
-  }
-  .victory-stats{
-    font-size:9px;color:var(--phd);letter-spacing:1px;
-    text-align:center;line-height:1.9;border-top:1px solid var(--bdr);
-    padding-top:14px;width:100%;
-  }
-
-  /* ── AUTH / LOBBY / WAITING OVERLAY SCREENS ─────────────────── */
-  .screen-overlay{
-    position:fixed;inset:0;z-index:500;
-    background:var(--bg);display:flex;flex-direction:column;
-    align-items:center;justify-content:center;
-  }
-  .screen-overlay.hidden{display:none;}
-  .auth-box{
-    background:var(--pan);border:1px solid var(--bdr);
-    padding:32px 36px;width:320px;display:flex;flex-direction:column;gap:14px;
-  }
-  .mc.p2{ border-color:rgba(255,68,68,0.2); }
-  .mc.sel{ border-color:var(--ph); background:rgba(0,255,136,0.06); box-shadow:0 0 10px rgba(0,255,136,0.1); }
-  .mc .mn{ font-family:'Orbitron',sans-serif;font-size:10px;color:var(--ph);margin-bottom:2px;letter-spacing:1px; }
-  .mc .ms{ font-size:9px; color:var(--dim); }
-  .mc .sr{ display:flex; justify-content:space-between; padding:1px 0; }
-  .mc .sr .v{ color:var(--txt); }
-
-  /* Armor Grid */
-  .mc-armor-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 2px;
-    margin-top: 6px;
-    border-top: 1px solid var(--bdr);
-    padding-top: 5px;
-  }
-  .mc-armor-cell {
-    font-size: 7px;
-    text-align: center;
-    line-height: 1.1;
-  }
-  .mc-armor-cell .loc { color: var(--dim); display: block; margin-bottom: 1px; }
-  .mc-armor-cell .val { color: var(--phd); }
-  .mc-armor-cell.crit .val { color: var(--red); font-weight: bold; }
-
-  /* Weapons List */
-  .mc-weapons {
-    margin-top: 6px;
-    border-top: 1px solid var(--bdr);
-    padding-top: 4px;
-  }
-  .mc-weapon-item {
-    font-size: 8px;
-    color: var(--txt);
-    display: flex;
-    justify-content: space-between;
-    opacity: 0.8;
-  }
-  .mc-weapon-item.disabled {
-    color: var(--red);
-    text-decoration: line-through;
-    opacity: 0.5;
-  }
-  .auth-box h2{
-    font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:4px;
-    color:var(--ph);margin-bottom:4px;
-  }
-  .auth-box label{font-size:9px;color:var(--dim);letter-spacing:2px;}
-  .auth-box input{
-    width:100%;background:rgba(0,255,136,.04);border:1px solid var(--bdr);
-    color:var(--txt);font-family:'Share Tech Mono',monospace;font-size:12px;
-    padding:7px 10px;outline:none;
-  }
-  .auth-box input:focus{border-color:var(--phd);}
-  .auth-btn{
-    font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:3px;
-    background:transparent;border:1px solid var(--ph);color:var(--ph);
-    padding:9px;cursor:pointer;transition:all .12s;margin-top:4px;
-  }
-  .auth-btn:hover{background:rgba(0,255,136,.09);}
-  .auth-btn:disabled{opacity:.4;cursor:default;}
-  .auth-btn.sec{border-color:var(--bdr);color:var(--dim);}
-  .auth-btn.sec:hover{color:var(--txt);border-color:var(--phd);}
-  .auth-btn.danger{border-color:#441111;color:#cc4444;}
-  .auth-btn.danger:hover{background:rgba(255,68,68,.09);}
-  .auth-err{font-size:9px;color:#ff6666;min-height:14px;}
-  .auth-link{font-size:9px;color:var(--dim);cursor:pointer;text-decoration:underline;}
-  .auth-link:hover{color:var(--ph);}
-
-  /* lobby */
-  .lobby-box{
-    background:var(--pan);border:1px solid var(--bdr);
-    padding:28px 32px;width:380px;display:flex;flex-direction:column;gap:16px;
-  }
-  .lobby-box h2{
-    font-family:'Orbitron',sans-serif;font-size:13px;letter-spacing:4px;color:var(--ph);
-  }
-  .lobby-section{display:flex;flex-direction:column;gap:8px;}
-  .lobby-section .lbl{font-size:8px;color:var(--dim);letter-spacing:3px;}
-  .lobby-divider{border:none;border-top:1px solid var(--bdr);margin:4px 0;}
-
-  /* waiting room */
-  .wait-box{
-    background:var(--pan);border:1px solid var(--bdr);
-    padding:28px 32px;width:400px;display:flex;flex-direction:column;gap:14px;
-  }
-  .wait-box h2{
-    font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:4px;color:var(--ph);
-  }
-  .seat-row{
-    display:flex;align-items:center;gap:10px;
-    border:1px solid var(--bdr);padding:10px 12px;
-  }
-  .seat-row.mine{border-color:var(--phd);background:rgba(0,255,136,.04);}
-  .seat-row.taken{border-color:#1a2a1a;}
-  .seat-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
-  .seat-name{flex:1;font-size:11px;color:var(--txt);}
-  .seat-badge{
-    font-size:8px;letter-spacing:2px;padding:2px 6px;border:1px solid;
-  }
-  .seat-badge.you{color:var(--amb);border-color:var(--amb);}
-  .seat-badge.joined{color:var(--ph);border-color:var(--phd);}
-  .seat-badge.empty{color:var(--dim);border-color:var(--bdr);}
-  .seat-btn{
-    font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;
-    background:transparent;border:1px solid var(--phd);color:var(--phd);
-    padding:4px 10px;cursor:pointer;transition:all .12s;
-  }
-  .seat-btn:hover{color:var(--ph);border-color:var(--ph);}
-  .seat-btn.rel{border-color:#441111;color:#884444;}
-  .seat-btn.rel:hover{color:#ff4444;border-color:#ff4444;}
-
-  /* ── LANCE BUILDER ──────────────────────────────────────────── */
-  .lance-builder{
-    border:1px solid var(--bdr);padding:12px 14px;
-    display:flex;flex-direction:column;gap:8px;
-  }
-  .lance-builder .lbl{font-size:8px;color:var(--dim);letter-spacing:3px;margin-bottom:2px;}
-  .lance-budget{
-    display:flex;align-items:center;justify-content:space-between;
-    font-size:9px;color:var(--dim);
-  }
-  .lance-budget .pts{font-size:13px;letter-spacing:1px;}
-  .lance-budget .pts.ok   {color:var(--ph);}
-  .lance-budget .pts.over {color:var(--red);}
-  .lance-budget .pts.warn {color:var(--amb);}
-  .lance-slot-row{
-    display:flex;align-items:center;gap:6px;
-  }
-  .lance-slot-label{font-size:9px;color:var(--dim);width:18px;flex-shrink:0;letter-spacing:1px;}
-  .lance-slot-select{
-    flex:1;background:rgba(0,255,136,.04);border:1px solid var(--bdr);
-    color:var(--txt);font-family:'Share Tech Mono',monospace;font-size:9px;
-    padding:4px 7px;outline:none;cursor:pointer;
-  }
-  .lance-slot-select:focus{border-color:var(--phd);}
-  .lance-slot-cost{
-    font-size:9px;color:var(--dim);width:16px;text-align:right;flex-shrink:0;
-  }
-  .lance-desc{font-size:8px;color:var(--dim);letter-spacing:0.5px;margin-top:1px;line-height:1.5;}
-  .lance-status{
-    font-size:8px;letter-spacing:1px;min-height:12px;
-    padding:3px 0;border-top:1px solid var(--bdr);
-  }
-  .lance-status.ok  {color:var(--ph);}
-  .lance-status.bad {color:var(--red);}
-  .lance-status.wait{color:var(--dim);}
-  .code-display{
-    font-family:'Orbitron',sans-serif;font-size:28px;letter-spacing:8px;
-    color:var(--amb);text-align:center;padding:8px;border:1px solid #332200;
-    background:rgba(255,170,0,.04);cursor:pointer;
-    text-shadow:0 0 12px rgba(255,170,0,.3);
-  }
-  .code-display:hover{background:rgba(255,170,0,.08);}
-  .wait-status{font-size:9px;color:var(--dim);text-align:center;min-height:14px;}
-  .wait-status.ok{color:var(--ph);}
-  .sync-row{
-    position:fixed;top:10px;right:14px;font-size:9px;color:var(--dim);
-    display:flex;align-items:center;gap:5px;z-index:600;
-    opacity:0;transition:opacity .2s;
-  }
-  .sync-row.vis{opacity:1;}
-  .sync-dot{width:6px;height:6px;border-radius:50%;background:var(--dim);}
-  .sync-dot.saving{background:var(--amb);animation:pulse .6s infinite;}
-  .sync-dot.saved{background:var(--ph);}
-  @keyframes pulse{50%{opacity:.3;}}
-
-  /* user bar in header */
-  .userbar{display:flex;align-items:center;gap:10px;font-size:9px;color:var(--dim);}
-  .userbar b{color:var(--ph);font-weight:normal;}
-
-  /* plan submission bar */
-  .planbar{
-    position:absolute;top:10px;left:50%;transform:translateX(-50%);
-    background:rgba(6,10,7,.95);border:1px solid var(--bdr);
-    padding:6px 14px;display:flex;align-items:center;gap:12px;
-    z-index:20;font-size:9px;color:var(--dim);
-    backdrop-filter:blur(8px);
-  }
-  .planbar b{color:var(--ph);}
-  .planbar.enemy-waiting b.enem{color:var(--amb);}
-  .plan-btn{
-    font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:2px;
-    background:transparent;border:1px solid var(--phd);color:var(--phd);
-    padding:5px 12px;cursor:pointer;transition:all .12s;
-  }
-  .plan-btn:hover{color:var(--ph);border-color:var(--ph);background:rgba(0,255,136,.07);}
-  .plan-btn:disabled{opacity:.35;cursor:default;}
-  .plan-btn.submitted{border-color:var(--ph);color:var(--ph);background:rgba(0,255,136,.07);}
-  .plan-btn.recall{border-color:#441111;color:#884444;}
-  .plan-btn.recall:hover{color:#ff4444;border-color:#ff4444;background:rgba(255,68,68,.07);}
-</style>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <!-- sync indicator -->
@@ -604,6 +19,15 @@
 <button id="settings-cog" onclick="toggleSettings()" title="Settings">⚙</button>
 <div id="settings-panel">
   <div class="sett-title">// DISPLAY SETTINGS</div>
+
+  <div class="sett-row">
+    <div class="sett-label">UI LAYOUT <span style="opacity:0.5;">(dev)</span></div>
+    <div class="sett-btns">
+      <button class="sett-btn" id="sett-layout-classic" onclick="setUiLayout('classic')">CLASSIC</button>
+      <button class="sett-btn" id="sett-layout-compact" onclick="setUiLayout('compact')">COMPACT</button>
+      <button class="sett-btn" id="sett-layout-mobile"  onclick="setUiLayout('mobile')">MOBILE</button>
+    </div>
+  </div>
 
   <div class="sett-row">
     <div class="sett-label">THEME</div>
@@ -634,6 +58,27 @@
     <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="toggleWeaponLabelsHover()">
       <input type="checkbox" id="sett-wp-hover" style="accent-color:var(--ph);cursor:pointer;" checked>
       <span style="font-size:8px;color:var(--txt);letter-spacing:1px;">WEAPON LABELS ON HOVER</span>
+    </div>
+  </div>
+
+  <div class="sett-row" style="border-top:1px solid var(--bdr);padding-top:10px;margin-top:2px;">
+    <div class="sett-label" style="color:var(--amb);">// DEVELOPER</div>
+  </div>
+
+  <div class="sett-row">
+    <div class="sett-label">DEBUG OVERLAYS</div>
+    <div class="sett-btns">
+      <button class="sett-btn" id="b-tg"   onclick="togFlag('tri')">TRI GRID</button>
+      <button class="sett-btn" id="b-half" onclick="togFlag('half')">HALF TRIS</button>
+      <button class="sett-btn" id="b-vx"   onclick="togFlag('verts')">VERTICES</button>
+    </div>
+  </div>
+
+  <div class="sett-row">
+    <div class="sett-label">RAW STATE READOUTS</div>
+    <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="toggleDevInfo()">
+      <input type="checkbox" id="sett-dev-info" style="accent-color:var(--amb);cursor:pointer;">
+      <span style="font-size:8px;color:var(--txt);letter-spacing:1px;">SHOW COVERAGE / CURSOR</span>
     </div>
   </div>
 
@@ -785,26 +230,28 @@
     <!-- Map pan scrollbars -->
     <div class="map-hscroll"><input type="range" id="hscroll" min="0" max="1000" value="500" oninput="onHScroll()"></div>
     <div class="map-vscroll"><input type="range" id="vscroll" min="0" max="1000" value="500" oninput="onVScroll()"></div>
-    <!-- WeGo plan bar -->
-    <div class="planbar hidden" id="planbar">
-      <span>YOUR PLAN: <b id="planStatus">not submitted</b></span>
-      <span>OPPONENT: <b class="enem" id="enemStatus">waiting</b></span>
-      <button class="plan-btn" id="btnSubmit" onclick="submitPlan()">SUBMIT PLAN</button>
-      <button class="plan-btn recall hidden" id="btnRecall" onclick="recallPlan()">RECALL</button>
-    </div>
-    <div class="tbar" id="tbar">
-      <button class="tb on"  id="b-sel"  onclick="setMode('select')">[ SELECT ]</button>
-      <button class="tb"     id="b-move" onclick="setMode('move')">[ MOVE ]</button>
-      <button class="tb amb" id="b-rot"  onclick="setMode('rotate')">[ ROTATE ]</button>
-      <button class="tb los" id="b-los"  onclick="setMode('los')">[ LOS ]</button>
-      <button class="tb fire" id="b-fire" onclick="setMode('fire')">[ FIRE ]</button>
-      <button class="tb" id="b-terrain" onclick="setMode('terrain')" style="color:#88ddff;border-color:#1e3344;">[ TERRAIN ]</button>
-      <button class="tb" id="b-undo" onclick="undoMove()" style="color:var(--amb);border-color:#332200;" title="Undo last move of selected mech">[ UNDO ]</button>
-      <button class="tb"     id="b-tg"   onclick="togFlag('tri')">[ TRI GRID ]</button>
-      <button class="tb on"  id="b-out"  onclick="togFlag('out')">[ OUTLINE ]</button>
-      <button class="tb on"  id="b-half" onclick="togFlag('half')">[ HALF TRIS ]</button>
-      <button class="tb on"  id="b-vx"   onclick="togFlag('verts')">[ VERTICES ]</button>
-      <button class="tb" style="color:#88aaff;border-color:#1e2244;" onclick="newTurn()">[ NEW TURN ]</button>
+    <!-- Bottom control strip — in CLASSIC layout this wrapper has no effect
+         (children keep their own absolute positioning against .carea, the
+         nearest positioned ancestor). In COMPACT layout, body[data-ui-layout="compact"]
+         turns this into a single flex strip merging the plan bar + toolbar. -->
+    <div id="bottomStrip">
+      <!-- WeGo plan bar -->
+      <div class="planbar hidden" id="planbar">
+        <span class="plan-text">YOUR PLAN: <b id="planStatus">not submitted</b></span>
+        <span class="plan-text">OPPONENT: <b class="enem" id="enemStatus">waiting</b></span>
+        <span class="plan-pill" id="planPill" title="Plan status"><span class="dot"></span>PLAN</span>
+        <button class="plan-btn" id="btnSubmit" onclick="submitPlan()">SUBMIT PLAN</button>
+        <button class="plan-btn recall hidden" id="btnRecall" onclick="recallPlan()">RECALL</button>
+      </div>
+      <div class="tbar" id="tbar">
+        <button class="tb on"  id="b-sel"  onclick="setMode('select')">[ SELECT ]</button>
+        <button class="tb"     id="b-move" onclick="setMode('move')">[ MOVE ]</button>
+        <button class="tb amb" id="b-rot"  onclick="setMode('rotate')">[ ROTATE ]</button>
+        <button class="tb los" id="b-los"  onclick="setMode('los')">[ LOS ]</button>
+        <button class="tb fire" id="b-fire" onclick="setMode('fire')">[ FIRE ]</button>
+        <button class="tb on"  id="b-out"  onclick="togFlag('out')">[ OUTLINE ]</button>
+        <button class="tb" id="b-undo" onclick="undoMove()" style="color:var(--amb);border-color:#332200;" title="Undo last move of selected mech">[ UNDO ]</button>
+      </div>
     </div>
   </div>
 
@@ -815,7 +262,7 @@
     <div class="ib"><div class="lbl">PILOT</div><div class="coord" id="rPilot" style="font-size:9px;color:var(--dim);">—</div></div>
     <div class="ib"><div class="lbl">ANCHOR</div><div class="coord" id="rPos">—</div></div>
     <div class="ib"><div class="lbl">FACING</div><div class="fdisp" id="rF">—°</div></div>
-    <div class="ib"><div class="lbl">COVERAGE</div><div class="coord" id="rC">full:— half:—</div></div>
+    <div class="ib dev-only" id="ib-coverage"><div class="lbl">COVERAGE</div><div class="coord" id="rC">full:— half:—</div></div>
     <div class="mpbar-wrap">
       <div class="lbl">MOVEMENT POINTS</div>
       <div class="mpbar-row">
@@ -823,7 +270,7 @@
         <div class="mpbar-nums" id="mpNums">—</div>
       </div>
     </div>
-    <div class="ib"><div class="lbl">CURSOR</div><div class="coord" id="rCur">—</div></div>
+    <div class="ib dev-only" id="ib-cursor"><div class="lbl">CURSOR</div><div class="coord" id="rCur">—</div></div>
     <div class="wheel-wrap"><canvas id="wheel" width="76" height="76"></canvas></div>
     <div class="move-hint" id="mhint">Select a unit to begin</div>
     <div id="wpicker">
@@ -845,11 +292,21 @@
   </div>
 </div>
 
+<!-- ── MOBILE TAB BAR (Step 4) ─────────────────────────────────────
+     Hidden outside body[data-ui-layout="mobile"]. In mobile layout,
+     LANCE ROSTER / MAP / UNIT DATA become single full-screen panels
+     switched via these tabs instead of simultaneous flex columns. -->
+<div class="mobile-tabbar" id="mobileTabbar">
+  <button class="mtab active" data-panel="carea" onclick="setMobilePanel('carea')"><span class="micon">🗺</span>MAP</button>
+  <button class="mtab" data-panel="lpan" onclick="setMobilePanel('lpan')"><span class="micon">👥</span>ROSTER</button>
+  <button class="mtab" data-panel="rpan" onclick="setMobilePanel('rpan')"><span class="micon">📊</span>UNIT</button>
+</div>
+
 <script>
 // ================================================================
 //  IRONFIELD  Phase 2 — Supabase multiplayer
 //
-//  Auth:     Supabase email/password (username@ironfield.game trick)
+//  Auth:     Supabase email/password (username@FreeGames.com trick)
 //  Lobby:    Create game / join by code
 //  Waiting:  2-seat claim system, realtime sync
 //  WeGo:     Both players submit turn plans → simultaneous resolution
@@ -965,7 +422,7 @@ async function doLogin() {
   if (!pass) { err.textContent = 'Enter your password.'; return; }
   btn.disabled = true; btn.textContent = 'SIGNING IN…';
   const { data, error } = await db.auth.signInWithPassword({
-    email: `${user}@thedeck.game`, password: pass
+    email: `${user}@FreeGames.com`, password: pass
   });
   btn.disabled = false; btn.textContent = 'SIGN IN';
   if (error) {
@@ -991,7 +448,7 @@ async function doRegister() {
   if (pass.length < 6)            { err.textContent = 'Password must be 6+ characters.'; return; }
   if (pass !== conf)              { err.textContent = 'Passwords do not match.'; return; }
   btn.disabled = true; btn.textContent = 'CREATING…';
-  const { data, error } = await db.auth.signUp({ email: `${user}@thedeck.game`, password: pass });
+  const { data, error } = await db.auth.signUp({ email: `${user}@FreeGames.com`, password: pass });
   if (error) {
     btn.disabled = false; btn.textContent = 'CREATE ACCOUNT';
     err.textContent = error.message.includes('already') ? 'That callsign is taken.' : error.message;
@@ -1598,6 +1055,7 @@ function aiGeneratePlan() {
 
     let destWx = m.wx, destWy = m.wy, mpSpent = 0;
     let bestFacing = m.facing;
+    let visitedPath = null;
 
     if (closest) {
       const target = closest.mech;
@@ -1615,6 +1073,7 @@ function aiGeneratePlan() {
       if (currentDist > prefRange) {
         // Step toward enemy along vertex graph, spending up to mpAvail
         let wx = m.wx, wy = m.wy, spent = 0;
+        const visited = [{ wx, wy }];
         const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
         if (path && path.length > 1) {
           for (let step = 1; step < path.length; step++) {
@@ -1631,11 +1090,13 @@ function aiGeneratePlan() {
             );
             if (blocked) break;
             wx    = vPos.wx; wy = vPos.wy; spent += cost;
+            visited.push({ wx, wy });
             // Stop when we reach preferred range
             const newDist = hexDist({ wx, wy }, target);
             if (newDist <= prefRange) break;
           }
           destWx = wx; destWy = wy; mpSpent = spent;
+          visitedPath = visited.length > 1 ? visited : null;
         }
       }
     }
@@ -1645,7 +1106,8 @@ function aiGeneratePlan() {
       wx:           destWx,
       wy:           destWy,
       final_facing: bestFacing,
-      mp_spent:     mpSpent
+      mp_spent:     mpSpent,
+      path:         visitedPath
     });
 
     // ── FIRE: pick best weapon with a valid shot at closest enemy ──
@@ -1821,6 +1283,22 @@ async function checkBothPlansSubmitted() {
   }
 }
 
+// Stitch a mech's recorded move legs (moveHistory) into one continuous vertex path.
+// Used both for the post-submit log breakdown and for the rendered movement trail.
+// Returns null if the mech didn't move this turn (or only has a single-point "path").
+function buildMovePath(m) {
+  const legs = moveHistory[m.id] || [];
+  if (legs.length === 0) return null;
+  const full = [];
+  legs.forEach(leg => {
+    (leg.legPath || []).forEach(pt => {
+      const last = full[full.length - 1];
+      if (!last || last.wx !== pt.wx || last.wy !== pt.wy) full.push(pt);
+    });
+  });
+  return full.length > 1 ? full : null;
+}
+
 // ── TURN PLAN SUBMISSION ──────────────────────────────────────────
 async function submitPlan() {
   if (myPlanSubmitted) return;
@@ -1835,7 +1313,8 @@ async function submitPlan() {
       wx:           m.wx,
       wy:           m.wy,
       final_facing: m.facing,
-      mp_spent:     m.mpSpent
+      mp_spent:     m.mpSpent,
+      path:         buildMovePath(m)
     })),
     fire_orders: fireOrders.filter(fo =>
       myMechs.some(m => m.id === fo.attacker_id)
@@ -1852,6 +1331,21 @@ async function submitPlan() {
   myPlanId        = data.id;
   myPlanSubmitted = true;
   showSynced();
+
+  // Final-state summary — one line per mech, now that the plan is locked in
+  addLog('── PLAN SUBMITTED ──', 'ok');
+  myMechs.forEach(m => {
+    const legs = moveHistory[m.id] || [];
+    let moveStr = '';
+    if (legs.length === 1) {
+      moveStr = `, moved (MP:${m.mpSpent})`;
+    } else if (legs.length > 1) {
+      const costs = legs.map(l => l.legCost ?? 0).join('+');
+      moveStr = `, moved ${legs.length} legs [${costs}=${m.mpSpent}MP]`;
+    }
+    addLog(`${m.name}: facing ${m.facing}°${moveStr}`, 'ok');
+  });
+
   await logEvent('plan_submitted');
   updatePlanBar();
 
@@ -1866,7 +1360,7 @@ async function submitPlan() {
       submitted_at: new Date().toISOString(),
       mech_orders: myMechs.map(m => ({
         mech_id: m.id, wx: m.wx, wy: m.wy,
-        final_facing: m.facing, mp_spent: m.mpSpent
+        final_facing: m.facing, mp_spent: m.mpSpent, path: buildMovePath(m)
       })),
       fire_orders: fireOrders.filter(fo => myMechs.some(m => m.id === fo.attacker_id))
     };
@@ -1925,6 +1419,7 @@ async function resolveTurn(plans) {
       m.facing  = order.final_facing;
       // Record movement before resetting so combat modifiers can use it
       m.mpSpentLastTurn = order.mp_spent ?? m.mpSpent;
+      m.lastMovePath    = order.path || null;  // full route for trail rendering
       m.mpSpent = 0;
     });
   });
@@ -2122,6 +1617,31 @@ function updatePlanBar() {
   bsub.disabled  = myPlanSubmitted;
   brec.className = 'plan-btn recall' + (myPlanSubmitted ? '' : ' hidden');
   bar.className  = 'planbar' + (enemyPlanSubmitted ? ' enemy-waiting' : '');
+
+  // MOBILE layout — compact status pill (colour-coded dot) standing in for
+  // the two full status lines, which are hidden in that layout to save space.
+  const pill = document.getElementById('planPill');
+  if (pill) {
+    const dot = pill.querySelector('.dot');
+    const state = myPlanSubmitted && enemyPlanSubmitted ? 'resolving'
+                : myPlanSubmitted                        ? 'submitted'
+                : enemyPlanSubmitted                      ? 'enemy-ready'
+                                                            : 'waiting';
+    const colours = {
+      resolving:   'var(--ph)',
+      submitted:   'var(--amb)',
+      'enemy-ready': 'var(--amb)',
+      waiting:     'var(--dim)',
+    };
+    const titles = {
+      resolving:   'Both plans submitted — resolving turn',
+      submitted:   'Plan submitted — waiting on opponent',
+      'enemy-ready': 'Opponent ready — your plan not submitted yet',
+      waiting:     'Plan not submitted',
+    };
+    if (dot) dot.style.background = colours[state];
+    pill.title = titles[state];
+  }
 }
 
 function resetPlanUI() {
@@ -2153,6 +1673,7 @@ function captureState() {
       id: m.id, player: m.player, name: m.name, cls: m.cls,
       facing: m.facing, wx: m.wx, wy: m.wy, mpSpent: 0,
       mpSpentLastTurn: m.mpSpentLastTurn ?? 0,
+      lastMovePath:    m.lastMovePath    ?? null,
       destroyed:       m.destroyed       ?? false,
       armour:          m.armour          ?? { ...MECH_CLASSES[m.cls]?.baseArmour    },
       structure:       m.structure       ?? { ...MECH_CLASSES[m.cls]?.baseStructure },
@@ -2185,6 +1706,7 @@ function loadStateFromGame(state) {
       wy:              saved.wy              ?? 0,
       mpSpent:         saved.mpSpent         ?? 0,
       mpSpentLastTurn: saved.mpSpentLastTurn ?? 0,
+      lastMovePath:    saved.lastMovePath    ?? null,
       destroyed:       saved.destroyed       ?? false,
       armour:          saved.armour          ?? { ...cls.baseArmour    },
       structure:       saved.structure       ?? { ...cls.baseStructure },
@@ -2355,6 +1877,7 @@ function resetMultiState() {
   // Reset mechs to empty — positions and classes come from DB on next enterGame
   mechs = [];
   selId = null;
+  expandedRosterCards = new Set();
   // Clear the activity log so previous game messages don't bleed in
   const logEl = document.getElementById('log');
   if (logEl) logEl.innerHTML = '';
@@ -2394,6 +1917,9 @@ let isPanning = false, panStartX = 0, panStartY = 0, panOx = 0, panOy = 0;
 let gamePhase = 'planning'; // 'deployment' | 'planning'
 // fire orders queued this planning phase: [{ attacker_id, target_id, weapon }]
 let fireOrders = [];
+// COMPACT layout only: which roster cards are user-expanded (default = all collapsed).
+// Set of mech ids. Has no effect in CLASSIC layout — .mc-extra is always visible there.
+let expandedRosterCards = new Set();
 // move history for undo: map of mechId → stack of {wx, wy, mpSpent, facing} snapshots
 let moveHistory = {};  // cleared each turn by resetPlanUI
 // weapon picker state
@@ -2410,6 +1936,16 @@ let settingsOpen = false;
 let uiTheme      = localStorage.getItem('if_theme')      ?? 'dark';
 let uiBrightness = parseInt(localStorage.getItem('if_brightness') ?? '100', 10);
 let uiTextSize   = parseInt(localStorage.getItem('if_textsize')   ?? '100', 10);
+// UI LAYOUT — dev comparison switcher. 'classic' | 'compact' | 'mobile'.
+// COMPACT and MOBILE are infrastructure-only right now (Step 1) — no layout-specific
+// CSS exists for them yet, so they currently render identically to CLASSIC.
+// Later steps will add real rules under body[data-ui-layout="compact"] / ="mobile".
+let uiLayout     = localStorage.getItem('if_ui_layout')   ?? 'classic';
+// DEV INFO — shows/hides raw COVERAGE/CURSOR readouts (Tier 3 debug info).
+let uiDevInfo    = localStorage.getItem('if_dev_info')    === '1';
+// MOBILE layout only: which full-screen panel is active — 'carea' | 'lpan' | 'rpan'.
+// Not persisted — every session/layout switch starts back on the map.
+let mobilePanel  = 'carea';
 
 // Legacy vars — kept so any lingering references don't throw
 let logFontSize = 10;
@@ -2421,6 +1957,18 @@ function toggleSettings() {
 }
 
 function applyDisplaySettings() {
+  // UI Layout (dev switcher) — drives body[data-ui-layout="..."] CSS scoping
+  document.body.dataset.uiLayout = uiLayout;
+  ['classic','compact','mobile'].forEach(l => {
+    const btn = document.getElementById(`sett-layout-${l}`);
+    if (btn) btn.classList.toggle('active', uiLayout === l);
+  });
+
+  // MOBILE layout — sync the active full-screen panel + tab bar highlight.
+  // (mobilePanel itself is only reset to 'carea' on layout switch, in setUiLayout.)
+  document.body.dataset.mobilePanel = mobilePanel;
+  document.querySelectorAll('.mtab').forEach(b => b.classList.toggle('active', b.dataset.panel === mobilePanel));
+
   // Theme
   document.body.classList.toggle('theme-light', uiTheme === 'light');
   const btnDark  = document.getElementById('sett-dark');
@@ -2443,6 +1991,19 @@ function applyDisplaySettings() {
   const wpCheck = document.getElementById('sett-wp-hover');
   if (wpCheck) wpCheck.checked = weaponLabelsHover;
 
+  // Dev info (COVERAGE / CURSOR readouts)
+  document.querySelectorAll('.dev-only').forEach(el => el.classList.toggle('show', uiDevInfo));
+  const devCheck = document.getElementById('sett-dev-info');
+  if (devCheck) devCheck.checked = uiDevInfo;
+
+  // Sync relocated debug-overlay toggle buttons (TRI GRID / HALF TRIS / VERTICES)
+  // with their current flags state — these default half:true, verts:true.
+  ['tg','half','vx'].forEach(id => {
+    const btn = document.getElementById(`b-${id}`);
+    const key = { tg:'tri', half:'half', vx:'verts' }[id];
+    if (btn) btn.classList.toggle('active', flags[key]);
+  });
+
   document.documentElement.style.setProperty('--log-size', (10 * scale) + 'px');
   const sizeLbl = document.getElementById('sett-size-lbl');
   if (sizeLbl) sizeLbl.textContent = uiTextSize + '%';
@@ -2453,6 +2014,30 @@ function toggleWeaponLabelsHover() {
   localStorage.setItem('if_wp_hover', weaponLabelsHover ? '1' : '0');
   applyDisplaySettings();
   draw();
+}
+
+function toggleDevInfo() {
+  uiDevInfo = !uiDevInfo;
+  localStorage.setItem('if_dev_info', uiDevInfo ? '1' : '0');
+  applyDisplaySettings();
+}
+
+// MOBILE layout only — switch which full-screen panel is showing
+// (map / roster / unit data), driven by the persistent tab bar.
+function setMobilePanel(panel) {
+  mobilePanel = panel;
+  document.body.dataset.mobilePanel = panel;
+  document.querySelectorAll('.mtab').forEach(b => b.classList.toggle('active', b.dataset.panel === panel));
+  // Canvas dimensions can go stale while .carea was display:none — resync on return.
+  if (panel === 'carea') requestAnimationFrame(resize);
+}
+
+function setUiLayout(layout) {
+  uiLayout = layout;
+  localStorage.setItem('if_ui_layout', layout);
+  if (layout === 'mobile') mobilePanel = 'carea';  // always land on the map when entering mobile
+  applyDisplaySettings();
+  addLog(`UI layout: ${layout.toUpperCase()}`, 'ok');
 }
 
 function setTheme(theme) {
@@ -2474,10 +2059,12 @@ function adjustTextSize(delta) {
 }
 
 function resetDisplaySettings() {
-  uiTheme = 'dark'; uiBrightness = 100; uiTextSize = 100;
+  uiTheme = 'dark'; uiBrightness = 100; uiTextSize = 100; uiLayout = 'classic'; uiDevInfo = false;
   localStorage.setItem('if_theme', uiTheme);
   localStorage.setItem('if_brightness', uiBrightness);
   localStorage.setItem('if_textsize', uiTextSize);
+  localStorage.setItem('if_ui_layout', uiLayout);
+  localStorage.setItem('if_dev_info', '0');
   applyDisplaySettings();
 }
 
@@ -3502,6 +3089,7 @@ function draw() {
   if (flags.tri) drawTriGrid();
   drawCoverage();
   if (flags.out) drawOutlines();
+  drawMovementTrails();
   drawFacingCones();
   if (flags.verts) drawVertices();
   if (mode === 'move' && selId) drawMoveTargets();
@@ -3721,6 +3309,42 @@ function drawOutlines() {
     ctx.lineWidth = isSel ? 2 : 1;
     ctx.setLineDash(isSel ? [] : [4, 3]);
     ctx.stroke(); ctx.setLineDash([]);
+  });
+}
+
+// Draws the route each mech actually took last turn (full multi-leg path),
+// as a faded dashed trail with a start dot and an arrowhead at the final position.
+function drawMovementTrails() {
+  mechs.forEach(mech => {
+    const path = mech.lastMovePath;
+    if (!path || path.length < 2 || mech.destroyed) return;
+    const col = mech.player === 1 ? '0,255,136' : '255,68,68';
+
+    ctx.beginPath();
+    path.forEach((pt, i) => {
+      const { x: cx, y: cy } = w2c(pt.wx, pt.wy);
+      i === 0 ? ctx.moveTo(cx, cy) : ctx.lineTo(cx, cy);
+    });
+    ctx.strokeStyle = `rgba(${col},0.45)`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 4]);
+    ctx.stroke(); ctx.setLineDash([]);
+
+    // Start dot
+    const start = path[0];
+    const { x: sx, y: sy } = w2c(start.wx, start.wy);
+    ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${col},0.5)`; ctx.fill();
+
+    // Arrowhead at the final position
+    const end = path[path.length - 1], prev = path[path.length - 2];
+    const { x: ex, y: ey } = w2c(end.wx, end.wy);
+    const { x: px, y: py } = w2c(prev.wx, prev.wy);
+    const angle = Math.atan2(ey - py, ex - px), aLen = 7;
+    ctx.beginPath();
+    ctx.moveTo(ex, ey); ctx.lineTo(ex - aLen*Math.cos(angle-0.4), ey - aLen*Math.sin(angle-0.4));
+    ctx.moveTo(ex, ey); ctx.lineTo(ex - aLen*Math.cos(angle+0.4), ey - aLen*Math.sin(angle+0.4));
+    ctx.strokeStyle = `rgba(${col},0.6)`; ctx.lineWidth = 1.5; ctx.stroke();
   });
 }
 
@@ -4087,19 +3711,15 @@ function drawWheel() {
 // ── UI ───────────────────────────────────────────────────────────
 let turnNumber = 1;
 
-function newTurn() {
-  turnNumber++;
-  mechs.forEach(m => { m.mpSpent = 0; });
-  addLog(`── TURN ${turnNumber} BEGINS  ·  ALL MP RESTORED ──`, 'ok');
-  document.getElementById('hmode').closest('.hstat').querySelector('b:last-of-type')
-    && (document.querySelector('#hfacing').textContent = `TURN ${turnNumber}`);
-  updatePanel(); buildRoster(); draw();
-}
-
 function togFlag(k) {
   flags[k] = !flags[k];
   const bmap = { tri:'tg', out:'out', half:'half', verts:'vx' };
-  document.getElementById(`b-${bmap[k]}`).classList.toggle('on', flags[k]);
+  const btn = document.getElementById(`b-${bmap[k]}`);
+  if (btn) {
+    // Toolbar buttons use .tb.on styling; relocated settings-panel buttons use .sett-btn.active
+    const activeClass = btn.classList.contains('sett-btn') ? 'active' : 'on';
+    btn.classList.toggle(activeClass, flags[k]);
+  }
   addLog(`${k}: ${flags[k]?'ON':'OFF'}`);
   draw();
 }
@@ -4535,10 +4155,20 @@ function drawPilotAvatar(mechX, mechY, radius, pilotName, playerColor) {
   img.src = url;
 }
 
+// COMPACT layout only — expand/collapse a roster card's armour grid + weapons
+// list. stopPropagation so the click doesn't also fire the card's own
+// onclick (which selects the mech).
+function toggleRosterCard(id, ev) {
+  if (ev) ev.stopPropagation();
+  if (expandedRosterCards.has(id)) expandedRosterCards.delete(id);
+  else expandedRosterCards.add(id);
+  buildRoster();
+}
+
 function buildRoster() {
   const list = document.getElementById('mlist');
   list.innerHTML = '';
-  mechs.forEach(mech => {
+  mechs.filter(mech => mech.player === myPlayer).forEach(mech => {
     const isSel  = mech.id === selId;
     const isP1   = mech.player === 1;
     const cls    = MECH_CLASSES[mech.cls];
@@ -4669,22 +4299,26 @@ function buildRoster() {
 
     // Build card HTML — avatar injected via DOM after innerHTML set (avoids data-URL in template)
     const mechCol = isP1 ? '#00ff88' : '#ff4444';
+    const isExpanded = expandedRosterCards.has(mech.id);
     const inner = '<div class="mc-header" style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">' +
         '<div class="mc-avatar" data-pilot="' + (mech.pilotName ?? '') + '" data-color="' + mechCol + '" data-destroyed="' + (mech.destroyed ? '1' : '0') + '" style="width:28px;height:28px;flex-shrink:0;"></div>' +
         '<div style="flex:1;min-width:0;">' +
           '<div class="mn">' + mech.name + '</div>' +
           pilotHtml +
         '</div>' +
+        '<button class="mc-expand-btn" title="Show/hide armour grid + weapons" onclick="toggleRosterCard(\'' + mech.id + '\', event)">' + (isExpanded ? '\u25be' : '\u25b8') + '</button>' +
       '</div>' +
       '<div class="ms">' +
         '<div class="sr"><span>CLASS</span><span class="v">' + (cls?.label ?? mech.cls) + '</span></div>' +
         '<div class="sr"><span>FACING</span><span class="v">' + mech.facing + '\u00b0</span></div>' +
         '<div class="sr"><span>MP</span><span class="v">' + mpLeft + '/' + mpMax + '</span></div>' +
-        pipHtml + hpHtml + statusHtml + fireHtml + armorGridHtml + weaponsHtml +
+        pipHtml + hpHtml + statusHtml + fireHtml +
+        '<div class="mc-extra">' + armorGridHtml + weaponsHtml + '</div>' +
       '</div>';
     const c = document.createElement('div');
     const destroyedCls = mech.destroyed ? 'destroyed' : '';
-    c.className = `mc ${isP1?'p1':'p2'} ${isSel?'sel':''} ${isTargeted?'fire-target':''} ${destroyedCls}`.trim();
+    const expandedCls  = isExpanded ? 'expanded' : '';
+    c.className = `mc ${isP1?'p1':'p2'} ${isSel?'sel':''} ${isTargeted?'fire-target':''} ${destroyedCls} ${expandedCls}`.trim();
     c.innerHTML = inner;
     // Inject pilot avatar image after innerHTML (avoids data-URL in template literal)
     const avatarSlot = c.querySelector('.mc-avatar');
@@ -4888,13 +4522,17 @@ canvas.addEventListener('click', e => {
         addLog(`${m.name}: INSUFFICIENT MP (need ${cost}, have ${mpLeft})`, 'bad');
         return;
       }
+      // Full vertex path for this leg (for the movement trail + log breakdown later)
+      const legPath = currentPath
+        ? currentPath.map(k => { const v = vertByKey.get(k); return { wx: v.wx, wy: v.wy }; })
+        : [{ wx: m.wx, wy: m.wy }, { wx: hovVert.wx, wy: hovVert.wy }];
       // Save snapshot for undo before applying the move
       if (!moveHistory[m.id]) moveHistory[m.id] = [];
-      moveHistory[m.id].push({ wx: m.wx, wy: m.wy, mpSpent: m.mpSpent, facing: m.facing });
+      moveHistory[m.id].push({ wx: m.wx, wy: m.wy, mpSpent: m.mpSpent, facing: m.facing, legCost: cost, legPath });
       m.wx      = hovVert.wx;
       m.wy      = hovVert.wy;
       m.mpSpent += cost;
-      addLog(`${m.name} moved  COST:${cost}  MP:${mechMpLeft(m)}/${mechMpMax(m)} remaining`, 'ok');
+      // (no per-click log — full route is summarised once the plan is submitted)
       currentPath = null; hovVert = null;
       updatePanel(); buildRoster(); draw();
     }
@@ -4910,7 +4548,7 @@ canvas.addEventListener('click', e => {
       const canvasDeg = Math.atan2(wy - m.wy, wx - m.wx) * 180 / Math.PI;
       const northDeg  = canvasDeg + 90;   // convert east-zero to north-zero
       m.facing  = ((Math.round(northDeg / 30) * 30) % 360 + 360) % 360;
-      addLog(`${m.name} → ${m.facing}°`, 'ok');
+      // (no per-click log — final facing is summarised once the plan is submitted)
       updatePanel(); buildRoster(); draw();
     }
   }
@@ -5040,11 +4678,11 @@ document.addEventListener('keydown', e => {
     case 'q': case 'Q': case ',':
       if (m.player !== myPlayer) break;  // can't rotate enemy mechs
       m.facing = ((m.facing-30)+360)%360;
-      addLog(`${m.name} → ${m.facing}°`,'ok'); updatePanel(); buildRoster(); draw(); break;
+      updatePanel(); buildRoster(); draw(); break;
     case 'e': case 'E': case '.':
       if (m.player !== myPlayer) break;  // can't rotate enemy mechs
       m.facing = (m.facing+30)%360;
-      addLog(`${m.name} → ${m.facing}°`,'ok'); updatePanel(); buildRoster(); draw(); break;
+      updatePanel(); buildRoster(); draw(); break;
     case 's': setMode('select'); break;
     case 'm': setMode('move'); break;
     case 'r': setMode('rotate'); break;
