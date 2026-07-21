@@ -1328,6 +1328,62 @@ function aiGeneratePlanV02() {
           destWx = wx; destWy = wy; mpSpent = spent;
           visitedPath = visited.length > 1 ? visited : null;
         }
+      } else {
+        // ── REPOSITION: in range but could improve position ──
+        // Move to a nearby vertex that gives a better angle or terrain advantage
+        // (e.g., higher ground, cover, or a wider firing arc)
+        const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        if (path && path.length > 1) {
+          // Try a few nearby vertices along the path (or random if no path)
+          const candidates = [];
+          if (path.length > 2) {
+            // Take 1-2 steps along the path toward enemy (better angle)
+            const steps = Math.min(2, Math.floor(mpAvail / 2));
+            for (let step = 1; step <= steps; step++) {
+              const vk = path[step];
+              const vPos = vertByKey.get(vk);
+              if (vPos) candidates.push(vPos);
+            }
+          }
+          // Also try perpendicular neighbors for angle adjustment
+          const dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,1],[-1,1],[1,-1]];
+          dirs.forEach(([dq, dr]) => {
+            const nv = getVert(m.wx + dq, m.wy + dr);
+            if (nv) {
+              const blocked = mechs.some(other =>
+                other.id !== m.id && !other.destroyed &&
+                Math.hypot(other.wx - nv.wx, other.wy - nv.wy) < HS * 0.8
+              );
+              if (!blocked) candidates.push(nv);
+            }
+          });
+
+          // Pick the candidate that improves our position
+          let bestCand = null, bestScore = -1;
+          candidates.forEach(cand => {
+            const distToTarget = hexDist(cand, target);
+            const angleDiff = Math.abs(
+              ((bestFacing - target.facing + 540) % 360) - 180
+            );
+            // Score: prefer closer to target (but not too close), better facing
+            const distScore = Math.max(0, 1 - distToTarget / 15);
+            const facingScore = Math.max(0, 1 - angleDiff / 180);
+            const score = distScore * 0.5 + facingScore * 0.5;
+            if (score > bestScore) {
+              bestScore = score;
+              bestCand = cand;
+            }
+          });
+
+          if (bestCand) {
+            const midWx = (m.wx + bestCand.wx) / 2, midWy = (m.wy + bestCand.wy) / 2;
+            const cost = terrainMpCost(midWx, midWy);
+            if (cost <= mpAvail) {
+              destWx = bestCand.wx; destWy = bestCand.wy; mpSpent = cost;
+              visitedPath = [{ wx: m.wx, wy: m.wy }, { wx: destWx, wy: destWy }];
+            }
+          }
+        }
       }
     }
 
