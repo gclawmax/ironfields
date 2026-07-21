@@ -1181,12 +1181,12 @@ function aiGeneratePlanV01() {
 // Uses the Blackboard for situational awareness. Retreating when outnumbered,
 // conservative firing when damaged. Configurable aggression parameter.
 function aiGeneratePlanV02() {
-  // Build the blackboard — shared state context for AI reasoning
-  buildBlackboard();
-  const bb = blackboard;
-
   // AI player is always player 2 (the opponent)
   const aiPlayer = 2;
+
+  // Build the blackboard — shared state context for AI reasoning
+  buildBlackboard(aiPlayer);
+  const bb = blackboard;
   const myMechs  = mechs.filter(m => m.player === aiPlayer && !m.destroyed && !m.shutDown);
   const enemies  = mechs.filter(m => m.player !== aiPlayer && !m.destroyed);
 
@@ -1356,10 +1356,11 @@ function aiGeneratePlanV02() {
 // scores them on distance-to-range, heat efficiency, armor facing, and
 // threat assessment. Picks the highest-scoring action.
 function aiGeneratePlanV03() {
-  buildBlackboard();
-  const bb = blackboard;
-
   const aiPlayer = 2;
+
+  // Build the blackboard — shared state context for AI reasoning
+  buildBlackboard(aiPlayer);
+  const bb = blackboard;
   const myMechs  = mechs.filter(m => m.player === aiPlayer && !m.destroyed && !m.shutDown);
   const enemies  = mechs.filter(m => m.player !== aiPlayer && !m.destroyed);
 
@@ -1579,10 +1580,11 @@ function aiGeneratePlanV03() {
 // Phase 3: JSON personality archetypes (Aggression, Honor, Self-Preservation)
 // with dynamic emotional states (Fear, Rage, Panic) that shift per-turn behavior.
 function aiGeneratePlanV04() {
-  buildBlackboard();
-  const bb = blackboard;
-
   const aiPlayer = 2;
+
+  // Build the blackboard — shared state context for AI reasoning
+  buildBlackboard(aiPlayer);
+  const bb = blackboard;
   const myMechs  = mechs.filter(m => m.player === aiPlayer && !m.destroyed && !m.shutDown);
   const enemies  = mechs.filter(m => m.player !== aiPlayer && !m.destroyed);
 
@@ -2709,7 +2711,10 @@ let selectedElevationLevel = 1;          // 0=LOW 1=MID 2=HIGH — level to pain
 // contextually appropriate decisions instead of greedy nearest-neighbor.
 let blackboard = {};  // populated by buildBlackboard()
 
-function buildBlackboard() {
+function buildBlackboard(forPlayer) {
+  // If no player specified, use myPlayer (the human) — backward compat for multiplayer
+  const p = forPlayer ?? myPlayer;
+
   const bb = {
     turnNumber:     1,
     totalTurns:     10,  // configurable — used for late-game pressure
@@ -2729,24 +2734,24 @@ function buildBlackboard() {
     heatCritical:   false,
   };
 
-  const myMechs = mechs.filter(m => m.player === myPlayer);
-  const allEnemies = mechs.filter(m => m.player !== myPlayer);
-  const totalFriendly = mechs.filter(m => m.player === myPlayer).length;
-  const totalEnemy = mechs.filter(m => m.player !== myPlayer).length;
+  const myMechs = mechs.filter(m => m.player === p);
+  const allEnemies = mechs.filter(m => m.player !== p);
+  const totalFriendly = myMechs.length;
+  const totalEnemy = allEnemies.length;
 
   // Count destroyed/lost mechs
-  bb.friendlyLost = mechs.filter(m => m.player === myPlayer && m.destroyed).map(m => m.id);
+  bb.friendlyLost = mechs.filter(m => m.player === p && m.destroyed).map(m => m.id);
   bb.leaderDown = bb.friendlyLost.length > 0;  // first mech = leader for now
 
   // Heat state
-  bb.friendlyShutDown = mechs.filter(m => m.player === myPlayer && m.shutDown).map(m => m.id);
+  bb.friendlyShutDown = mechs.filter(m => m.player === p && m.shutDown).map(m => m.id);
   bb.friendlyHighHeat = mechs.filter(m => {
     return !m.destroyed && m.mpSpent > 0; // simplified — real heat tracking would be more complex
   }).map(m => m.id);
 
   // Damage state
   bb.friendlyDamaged = mechs.filter(m => {
-    if (m.player !== myPlayer || m.destroyed) return false;
+    if (m.player !== p || m.destroyed) return false;
     const cls = MECH_CLASSES[m.cls];
     const maxHp = cls?.hp ?? 100;
     return (m.hp ?? maxHp) < maxHp * 0.5;
@@ -2754,7 +2759,7 @@ function buildBlackboard() {
 
   // Ammo state — check if mech has any weapons with limited ammo
   bb.friendlyLowAmmo = mechs.filter(m => {
-    if (m.player !== myPlayer || m.destroyed) return false;
+    if (m.player !== p || m.destroyed) return false;
     const cls = MECH_CLASSES[m.cls];
     const weapons = cls?.weapons ?? [];
     return weapons.some(wk => {
