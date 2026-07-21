@@ -1350,16 +1350,559 @@ function aiGeneratePlanV02() {
   };
 }
 
+// ── AI PLAN GENERATOR V0.3 — Utility Scoring Base (Phase 2 Core) ────
+// Replaces greedy nearest-neighbor with mathematical utility scoring.
+// Each mech evaluates every possible action (move + face + fire) and
+// scores them on distance-to-range, heat efficiency, armor facing, and
+// threat assessment. Picks the highest-scoring action.
+function aiGeneratePlanV03() {
+  buildBlackboard();
+  const bb = blackboard;
+
+  const aiPlayer = 2;
+  const myMechs  = mechs.filter(m => m.player === aiPlayer && !m.destroyed && !m.shutDown);
+  const enemies  = mechs.filter(m => m.player !== aiPlayer && !m.destroyed);
+
+  // Personality config — adjustable per chassis type later
+  const aggression = 0.6;
+  const honor      = 0.3;  // lower = more willing to flee/retreat
+  const selfPres   = 0.4;  // higher = more cautious when damaged
+
+  const mechOrders = [];
+  const fireOrds   = [];
+
+  myMechs.forEach(m => {
+    const mpAvail = mechMpMax(m);
+    const cls     = MECH_CLASSES[m.cls];
+    const weapons = (cls?.weapons ?? []).filter(wk => !mechWeaponDisabled(m, wk));
+
+    // ── UTILITY SCORING: evaluate all enemies, not just closest ──────
+    // Score each enemy by how "worth engaging" they are
+    const enemyScores = enemies.map(e => {
+      const dist = hexDist(m, e);
+      const clsE = MECH_CLASSES[e.cls];
+      const hpRatio = (e.hp ?? e.maxHp) / (e.maxHp ?? 100);
+
+      // Distance score: prefer enemies at optimal range for our weapons
+      let distScore = 0;
+      if (weapons.length > 0) {
+        const bestWeapon = weapons.reduce((best, wk) => {
+          const w = WEAPONS[wk];
+          return (!best || w.range < best.range) ? w : best;
+        }, null);
+        if (bestWeapon) {
+          const optimalRange = bestWeapon.range * 0.7;  // 70% of max range is ideal
+          const idealDist = Math.max(3, optimalRange);
+          distScore = Math.max(0, 1 - Math.abs(dist - idealDist) / idealDist);
+        }
+      }
+
+      // Threat score: how much this enemy can hurt us
+      let threatScore = 0;
+      if (clsE) {
+        const threats = clsE.weapons.filter(wk => {
+          const w = WEAPONS[wk];
+          return w && dist <= w.range;
+        }).length;
+        threatScore = threats / clsE.weapons.length;
+      }
+
+      // Value score: high-value targets (heavies, medium HP)
+      const valueScore = hpRatio * (clsE ? clsE.hp / 100 : 0.5);
+
+      // Combined score: weighted sum
+      return {
+        mech: e,
+        dist: dist,
+        score: distScore * 0.4 + threatScore * 0.3 + valueScore * 0.3
+      };
+    });
+
+    // Sort enemies by score (highest first) — not just distance
+    enemyScores.sort((a, b) => b.score - a.score);
+    const bestTarget = enemyScores[0];
+
+    // ── MOVEMENT: utility-driven positioning ────────────────────────
+    const isDamaged = bb.friendlyDamaged.includes(m.id);
+    const heatRatio = (m.heat ?? 0) / (m.maxHeat ?? 100);
+    let destWx = m.wx, destWy = m.wy, mpSpent = 0;
+    let bestFacing = m.facing;
+    let visitedPath = null;
+
+    if (bestTarget) {
+      const target = bestTarget.mech;
+      const currentDist = bestTarget.dist;
+
+      // Face the enemy
+      const canvasBearing = Math.atan2(target.wy - m.wy, target.wx - m.wx) * 180 / Math.PI;
+      bestFacing = ((Math.round((canvasBearing + 90) / 30) * 30) % 360 + 360) % 360;
+
+      // Determine preferred range based on heat state
+      let prefRange = 5;
+      if (heatRatio > 0.7) {
+        // Overheating — prefer longer range to stay safe
+        prefRange = 10;
+      } else if (weapons.length > 0) {
+        prefRange = Math.max(3, Math.min(...weapons.map(wk => WEAPONS[wk]?.range ?? 99)));
+      }
+
+      // Utility-based movement decision
+      const shouldRetreat = isDamaged && bb.outnumbered && selfPres > 0.4;
+      const shouldHoldPosition = heatRatio > 0.8;
+
+      if (shouldRetreat && currentDist < prefRange * 1.5) {
+        // Retreat: move away from best target
+        const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        if (path && path.length > 1) {
+          const reversePath = path.slice().reverse();
+          let wx = m.wx, wy = m.wy, spent = 0;
+          const visited = [{ wx, wy }];
+          for (let step = 1; step < reversePath.length; step++) {
+            const vk = reversePath[step];
+            const vPos = vertByKey.get(vk);
+            if (!vPos) break;
+            const midWx = (wx + vPos.wx) / 2, midWy = (wy + vPos.wy) / 2;
+            const cost = terrainMpCost(midWx, midWy);
+            if (spent + cost > mpAvail) break;
+            const blocked = mechs.some(other =>
+              other.id !== m.id && !other.destroyed &&
+              Math.hypot(other.wx - vPos.wx, other.wy - vPos.wy) < HS * 0.8
+            );
+            if (blocked) break;
+            wx = vPos.wx; wy = vPos.wy; spent += cost;
+            visited.push({ wx, wy });
+            const newDist = hexDist({ wx, wy }, target);
+            if (newDist >= prefRange * 2) break;
+          }
+          destWx = wx; destWy = wy; mpSpent = spent;
+          visitedPath = visited.length > 1 ? visited : null;
+        }
+      } else if (shouldHoldPosition) {
+        // Hold position — don't move if overheated
+      } else if (currentDist > prefRange) {
+        // Advance toward target
+        let wx = m.wx, wy = m.wy, spent = 0;
+        const visited = [{ wx, wy }];
+        const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        if (path && path.length > 1) {
+          for (let step = 1; step < path.length; step++) {
+            const vk = path[step];
+            const vPos = vertByKey.get(vk);
+            if (!vPos) break;
+            const midWx = (wx + vPos.wx) / 2, midWy = (wy + vPos.wy) / 2;
+            const cost = terrainMpCost(midWx, midWy);
+            if (spent + cost > mpAvail) break;
+            const blocked = mechs.some(other =>
+              other.id !== m.id && !other.destroyed &&
+              Math.hypot(other.wx - vPos.wx, other.wy - vPos.wy) < HS * 0.8
+            );
+            if (blocked) break;
+            wx = vPos.wx; wy = vPos.wy; spent += cost;
+            visited.push({ wx, wy });
+            const newDist = hexDist({ wx, wy }, target);
+            if (newDist <= prefRange) break;
+          }
+          destWx = wx; destWy = wy; mpSpent = spent;
+          visitedPath = visited.length > 1 ? visited : null;
+        }
+      }
+    }
+
+    mechOrders.push({
+      mech_id:      m.id,
+      wx:           destWx,
+      wy:           destWy,
+      final_facing: bestFacing,
+      mp_spent:     mpSpent,
+      path:         visitedPath
+    });
+
+    // ── FIRE: utility scoring for weapon selection ──────────────────
+    if (bestTarget) {
+      const target = bestTarget.mech;
+      const origWx = m.wx, origWy = m.wy, origF = m.facing, origMp = m.mpSpent;
+      m.wx = destWx; m.wy = destWy; m.facing = bestFacing; m.mpSpent = mpSpent;
+
+      // Score each weapon by damage/heat efficiency and to-hit probability
+      let bestWeapon = null, bestWeaponScore = -1;
+      weapons.forEach(wk => {
+        const w = WEAPONS[wk];
+        const tn = calcToHit(m, target, w);
+        if (tn === null) return;
+
+        // Damage score: normalized (max damage ~100)
+        const dmgScore = (w.damage ?? 0) / 100;
+
+        // Heat efficiency: damage per heat point
+        const heatEff = w.heat > 0 ? dmgScore / (w.heat / 100) : dmgScore * 10;
+
+        // To-hit score: lower TN = higher probability
+        const hitChance = Math.max(0, 1 - (tn - 2) / 12);  // approximates 2d6 roll
+
+        // Armor facing bonus: side/rear shots are better
+        let facingBonus = 0;
+        const facingDiff = Math.abs(((bestFacing - target.facing + 540) % 360) - 180);
+        if (facingDiff > 120) facingBonus = 0.2;  // rear/side shot
+
+        // Heat penalty: don't fire if already hot
+        const heatPenalty = heatRatio > 0.7 ? 0.3 : 0;
+
+        // Combined utility score
+        const score = (heatEff * 0.4 + hitChance * 0.3 + facingBonus - heatPenalty);
+
+        if (score > bestWeaponScore) {
+          bestWeaponScore = score;
+          bestWeapon = wk;
+        }
+      });
+
+      m.wx = origWx; m.wy = origWy; m.facing = origF; m.mpSpent = origMp;
+
+      // Only fire if score is above threshold
+      if (bestWeapon && bestWeaponScore > 0.1) {
+        // Additional check: don't fire if overheated and this is a high-heat weapon
+        if (!(heatRatio > 0.8 && WEAPONS[bestWeapon]?.heat > 10)) {
+          fireOrds.push({ attacker_id: m.id, target_id: bestTarget.mech.id, weapon: bestWeapon });
+        }
+      }
+    }
+  });
+
+  return {
+    submitted_at: new Date().toISOString(),
+    mech_orders:  mechOrders,
+    fire_orders:  fireOrds
+  };
+}
+
+// ── AI PLAN GENERATOR V0.4 — Personality Profiles + Dynamic States ──
+// Phase 3: JSON personality archetypes (Aggression, Honor, Self-Preservation)
+// with dynamic emotional states (Fear, Rage, Panic) that shift per-turn behavior.
+function aiGeneratePlanV04() {
+  buildBlackboard();
+  const bb = blackboard;
+
+  const aiPlayer = 2;
+  const myMechs  = mechs.filter(m => m.player === aiPlayer && !m.destroyed && !m.shutDown);
+  const enemies  = mechs.filter(m => m.player !== aiPlayer && !m.destroyed);
+
+  // ── PERSONALITY PROFILES (Phase 3 JSON Archetypes) ───────────────
+  // These could be loaded from JSON files per faction. For now, inline.
+  const personalityProfiles = {
+    // Clan warrior — high honor, moderate aggression, low self-preservation
+    clan_warrior: {
+      aggression:    0.7,
+      honor:         0.9,   // won't flee, will engage any enemy
+      selfPres:      0.2,
+      fearThreshold: 0.1,   // rarely fears
+      rageThreshold: 0.6,   // goes berserk when heavily damaged
+      panicThreshold: 0.8   // only panics when nearly wiped
+    },
+    // Inner Sphere mercenary — pragmatic, moderate everything
+    mercenary: {
+      aggression:    0.5,
+      honor:         0.3,
+      selfPres:      0.6,
+      fearThreshold: 0.3,
+      rageThreshold: 0.7,
+      panicThreshold: 0.7
+    },
+    // Regular IS military — disciplined, moderate aggression, high self-preservation
+    regular: {
+      aggression:    0.4,
+      honor:         0.5,
+      selfPres:      0.7,
+      fearThreshold: 0.4,
+      rageThreshold: 0.8,
+      panicThreshold: 0.6
+    }
+  };
+
+  // Select personality — default to mercenary, could be faction-based
+  const personality = personalityProfiles.mercenary;
+
+  // ── DYNAMIC EMOTIONAL STATES ──────────────────────────────────────
+  // These change each turn based on battlefield conditions
+  const turnNumber = bb.turnNumber || 1;
+  const totalTurns = bb.totalTurns || 10;
+
+  // Fear: increases as friendly forces are lost
+  const friendlyLossRatio = bb.friendlyLost.length / Math.max(1, myMechs.length + bb.friendlyLost.length);
+  let fear = Math.min(1, friendlyLossRatio * 2);
+  fear = Math.max(0, fear - personality.fearThreshold);  // personality dampens fear
+
+  // Rage: increases when mech is damaged
+  let rage = 0;
+  myMechs.forEach(m => {
+    const hpRatio = (m.hp ?? m.maxHp) / (m.maxHp ?? 100);
+    if (hpRatio < 0.5) rage += (0.5 - hpRatio) * 2;
+  });
+  rage = Math.min(1, rage / Math.max(1, myMechs.length));
+  rage = Math.max(0, rage - personality.rageThreshold);
+
+  // Panic: increases when outnumbered and low HP
+  let panic = 0;
+  if (bb.outnumbered) {
+    panic = bb.friendlyRatio < 0.5 ? 0.5 : 0.2;
+  }
+  if (friendlyLossRatio > 0.5) panic += 0.3;
+  panic = Math.min(1, panic);
+  panic = Math.max(0, panic - personality.panicThreshold);
+
+  // ── EMOTION MODIFIERS ─────────────────────────────────────────────
+  // Fear: reduces aggression, increases retreat tendency
+  const fearMod = 1 - fear * 0.5;  // fear reduces effective aggression by up to 50%
+  // Rage: increases aggression, reduces caution
+  const rageMod = 1 + rage * 0.5;  // rage increases effective aggression by up to 50%
+  // Panic: causes erratic behavior — random targeting, unnecessary movement
+  const panicMod = panic > 0.5 ? 0.3 : 1;  // panic reduces decision quality
+
+  // Effective aggression modified by emotions and personality
+  const effectiveAggression = personality.aggression * fearMod * rageMod * panicMod;
+
+  const mechOrders = [];
+  const fireOrds   = [];
+
+  myMechs.forEach(m => {
+    const mpAvail = mechMpMax(m);
+    const cls     = MECH_CLASSES[m.cls];
+    const weapons = (cls?.weapons ?? []).filter(wk => !mechWeaponDisabled(m, wk));
+    const hpRatio = (m.hp ?? m.maxHp) / (m.maxHp ?? 100);
+
+    // ── UTILITY SCORING: evaluate all enemies ───────────────────────
+    const enemyScores = enemies.map(e => {
+      const dist = hexDist(m, e);
+      const clsE = MECH_CLASSES[e.cls];
+      const eHpRatio = (e.hp ?? e.maxHp) / (e.maxHp ?? 100);
+
+      let distScore = 0;
+      if (weapons.length > 0) {
+        const bestWeapon = weapons.reduce((best, wk) => {
+          const w = WEAPONS[wk];
+          return (!best || w.range < best.range) ? w : best;
+        }, null);
+        if (bestWeapon) {
+          const optimalRange = bestWeapon.range * 0.7;
+          const idealDist = Math.max(3, optimalRange);
+          distScore = Math.max(0, 1 - Math.abs(dist - idealDist) / idealDist);
+        }
+      }
+
+      let threatScore = 0;
+      if (clsE) {
+        const threats = clsE.weapons.filter(wk => {
+          const w = WEAPONS[wk];
+          return w && dist <= w.range;
+        }).length;
+        threatScore = threats / clsE.weapons.length;
+      }
+
+      const valueScore = eHpRatio * (clsE ? clsE.hp / 100 : 0.5);
+
+      return {
+        mech: e,
+        dist: dist,
+        score: distScore * 0.4 + threatScore * 0.3 + valueScore * 0.3
+      };
+    });
+
+    enemyScores.sort((a, b) => b.score - a.score);
+    const bestTarget = enemyScores[0];
+
+    // ── MOVEMENT ────────────────────────────────────────────────────
+    const heatRatio = (m.heat ?? 0) / (m.maxHeat ?? 100);
+    let destWx = m.wx, destWy = m.wy, mpSpent = 0;
+    let bestFacing = m.facing;
+    let visitedPath = null;
+
+    if (bestTarget) {
+      const target = bestTarget.mech;
+      const currentDist = bestTarget.dist;
+
+      const canvasBearing = Math.atan2(target.wy - m.wy, target.wx - m.wx) * 180 / Math.PI;
+      bestFacing = ((Math.round((canvasBearing + 90) / 30) * 30) % 360 + 360) % 360;
+
+      let prefRange = 5;
+      if (heatRatio > 0.7) prefRange = 10;
+      else if (weapons.length > 0) {
+        prefRange = Math.max(3, Math.min(...weapons.map(wk => WEAPONS[wk]?.range ?? 99)));
+      }
+
+      // Panic: random movement — move in a random direction instead of toward/away
+      if (panic > 0.5 && Math.random() < panic * 0.5) {
+        // Panic movement: random walk
+        const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        if (path && path.length > 1) {
+          // Take a random step from the path (not toward or away, just random)
+          const step = Math.floor(Math.random() * Math.min(path.length, 3));
+          const vk = path[step];
+          const vPos = vertByKey.get(vk);
+          if (vPos) {
+            const midWx = (m.wx + vPos.wx) / 2, midWy = (m.wy + vPos.wy) / 2;
+            const cost = terrainMpCost(midWx, midWy);
+            if (cost <= mpAvail) {
+              const blocked = mechs.some(other =>
+                other.id !== m.id && !other.destroyed &&
+                Math.hypot(other.wx - vPos.wx, other.wy - vPos.wy) < HS * 0.8
+              );
+              if (!blocked) {
+                destWx = vPos.wx; destWy = vPos.wy; mpSpent = cost;
+                visitedPath = [{ wx: m.wx, wy: m.wy }, { wx: destWx, wy: destWy }];
+              }
+            }
+          }
+        }
+      } else {
+        // Normal movement decision
+        const isDamaged = bb.friendlyDamaged.includes(m.id);
+        const shouldRetreat = isDamaged && bb.outnumbered &&
+          (personality.selfPres > 0.4 || fear > 0.3) && effectiveAggression < 0.5;
+
+        if (shouldRetreat && currentDist < prefRange * 1.5) {
+          const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+          if (path && path.length > 1) {
+            const reversePath = path.slice().reverse();
+            let wx = m.wx, wy = m.wy, spent = 0;
+            const visited = [{ wx, wy }];
+            for (let step = 1; step < reversePath.length; step++) {
+              const vk = reversePath[step];
+              const vPos = vertByKey.get(vk);
+              if (!vPos) break;
+              const midWx = (wx + vPos.wx) / 2, midWy = (wy + vPos.wy) / 2;
+              const cost = terrainMpCost(midWx, midWy);
+              if (spent + cost > mpAvail) break;
+              const blocked = mechs.some(other =>
+                other.id !== m.id && !other.destroyed &&
+                Math.hypot(other.wx - vPos.wx, other.wy - vPos.wy) < HS * 0.8
+              );
+              if (blocked) break;
+              wx = vPos.wx; wy = vPos.wy; spent += cost;
+              visited.push({ wx, wy });
+              const newDist = hexDist({ wx, wy }, target);
+              if (newDist >= prefRange * 2) break;
+            }
+            destWx = wx; destWy = wy; mpSpent = spent;
+            visitedPath = visited.length > 1 ? visited : null;
+          }
+        } else if (heatRatio > 0.8) {
+          // Hold position if overheated
+        } else if (currentDist > prefRange) {
+          let wx = m.wx, wy = m.wy, spent = 0;
+          const visited = [{ wx, wy }];
+          const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+          if (path && path.length > 1) {
+            for (let step = 1; step < path.length; step++) {
+              const vk = path[step];
+              const vPos = vertByKey.get(vk);
+              if (!vPos) break;
+              const midWx = (wx + vPos.wx) / 2, midWy = (wy + vPos.wy) / 2;
+              const cost = terrainMpCost(midWx, midWy);
+              if (spent + cost > mpAvail) break;
+              const blocked = mechs.some(other =>
+                other.id !== m.id && !other.destroyed &&
+                Math.hypot(other.wx - vPos.wx, other.wy - vPos.wy) < HS * 0.8
+              );
+              if (blocked) break;
+              wx = vPos.wx; wy = vPos.wy; spent += cost;
+              visited.push({ wx, wy });
+              const newDist = hexDist({ wx, wy }, target);
+              if (newDist <= prefRange) break;
+            }
+            destWx = wx; destWy = wy; mpSpent = spent;
+            visitedPath = visited.length > 1 ? visited : null;
+          }
+        }
+      }
+    }
+
+    mechOrders.push({
+      mech_id:      m.id,
+      wx:           destWx,
+      wy:           destWy,
+      final_facing: bestFacing,
+      mp_spent:     mpSpent,
+      path:         visitedPath
+    });
+
+    // ── FIRE: personality-influenced weapon selection ───────────────
+    if (bestTarget) {
+      const target = bestTarget.mech;
+      const origWx = m.wx, origWy = m.wy, origF = m.facing, origMp = m.mpSpent;
+      m.wx = destWx; m.wy = destWy; m.facing = bestFacing; m.mpSpent = mpSpent;
+
+      let bestWeapon = null, bestWeaponScore = -1;
+      weapons.forEach(wk => {
+        const w = WEAPONS[wk];
+        const tn = calcToHit(m, target, w);
+        if (tn === null) return;
+
+        const dmgScore = (w.damage ?? 0) / 100;
+        const heatEff = w.heat > 0 ? dmgScore / (w.heat / 100) : dmgScore * 10;
+        const hitChance = Math.max(0, 1 - (tn - 2) / 12);
+
+        let facingBonus = 0;
+        const facingDiff = Math.abs(((bestFacing - target.facing + 540) % 360) - 180);
+        if (facingDiff > 120) facingBonus = 0.2;
+
+        const heatPenalty = heatRatio > 0.7 ? 0.3 : 0;
+        const score = (heatEff * 0.4 + hitChance * 0.3 + facingBonus - heatPenalty);
+
+        if (score > bestWeaponScore) {
+          bestWeaponScore = score;
+          bestWeapon = wk;
+        }
+      });
+
+      m.wx = origWx; m.wy = origWy; m.facing = origF; m.mpSpent = origMp;
+
+      // Personality influences firing behavior
+      const shouldFire = bestWeapon && bestWeaponScore > 0.1;
+
+      // Honor: won't fire if fleeing (retreating) — honor-bound to fight
+      const isRetreating = (destWx !== m.wx || destWy !== m.wy) &&
+        bestTarget && hexDist({ wx: destWx, wy: destWy }, bestTarget.mech) >
+        hexDist(m.wx, m.wy, bestTarget.mech);
+      if (isRetreating && personality.honor > 0.7 && !isDamaged) {
+        // Honor-bound mech won't fire while not retreating — but if retreating, hold fire
+        // (unless rage overrides)
+        if (rage < 0.5) {
+          // Don't fire while retreating if honor is high and not enraged
+        } else {
+          // Rage overrides honor
+          if (shouldFire) {
+            fireOrds.push({ attacker_id: m.id, target_id: bestTarget.mech.id, weapon: bestWeapon });
+          }
+        }
+      } else if (shouldFire) {
+        // Panic: might fire even at bad targets
+        if (panic > 0.5 && bestWeaponScore < 0.15) {
+          // Panic firing — random, desperate shots
+          fireOrds.push({ attacker_id: m.id, target_id: bestTarget.mech.id, weapon: bestWeapon });
+        } else if (!(heatRatio > 0.8 && WEAPONS[bestWeapon]?.heat > 10)) {
+          fireOrds.push({ attacker_id: m.id, target_id: bestTarget.mech.id, weapon: bestWeapon });
+        }
+      }
+    }
+  });
+
+  return {
+    submitted_at: new Date().toISOString(),
+    mech_orders:  mechOrders,
+    fire_orders:  fireOrds
+  };
+}
+
 // ── AI DISPATCHER ───────────────────────────────────────────────────
 // Returns the AI plan generator function for the given difficulty level.
-// Difficulty levels: 'beginner' (V0.1), 'intermediate' (V0.2), 'advanced' (V0.3+), 'expert' (V0.4+)
+// Difficulty levels: 'beginner' (V0.1), 'intermediate' (V0.2),
+//   'advanced' (V0.3 — Utility Scoring), 'expert' (V0.4 — Personality + States)
 // Future phases add new versions here without modifying existing ones.
 function getAIPlanGenerator(difficulty) {
   const difficultyMap = {
-    beginner:   aiGeneratePlanV01,
+    beginner:     aiGeneratePlanV01,
     intermediate: aiGeneratePlanV02,
-    advanced:   aiGeneratePlanV02,  // placeholder — V0.3 will go here
-    expert:     aiGeneratePlanV02,  // placeholder — V0.4 will go here
+    advanced:     aiGeneratePlanV03,
+    expert:       aiGeneratePlanV04,
   };
   return difficultyMap[difficulty] || aiGeneratePlanV01;
 }
