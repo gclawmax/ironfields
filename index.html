@@ -183,6 +183,16 @@
     </div>
 
     <div class="wait-status" id="wait-status"></div>
+    <div id="ai-difficulty-section" style="display:none;border:1px solid var(--bdr);padding:10px 14px;margin-top:4px;">
+      <div class="lbl">// AI DIFFICULTY</div>
+      <div style="display:flex;gap:6px;margin-top:6px;">
+        <button class="auth-btn sec" id="diff-beginner" onclick="selectDifficulty('beginner')">BEGINNER</button>
+        <button class="auth-btn sec" id="diff-intermediate" onclick="selectDifficulty('intermediate')">INTERMEDIATE</button>
+        <button class="auth-btn sec" id="diff-advanced" onclick="selectDifficulty('advanced')">ADVANCED</button>
+        <button class="auth-btn sec" id="diff-expert" onclick="selectDifficulty('expert')">EXPERT</button>
+      </div>
+      <div style="font-size:8px;color:var(--dim);margin-top:4px;" id="diff-desc">Select AI difficulty for VS AI matches.</div>
+    </div>
     <button class="auth-btn" id="btn-start" onclick="doStartGame()" disabled>START GAME</button>
     <button class="auth-btn" id="btn-start-ai" onclick="doStartVsAI()" style="background:rgba(136,170,255,0.10);border-color:#334488;color:#88aaff;">START VS AI</button>
     <button class="auth-btn sec" onclick="leaveWaiting()">LEAVE LOBBY</button>
@@ -333,6 +343,7 @@ let myPlanSubmitted = false;
 let enemyPlanSubmitted = false;
 let syncTimer      = null;
 let vsAiMode       = false;  // true = P2 is a synthetic AI opponent (no second human needed)
+let aiDifficulty   = 'beginner';  // AI difficulty: beginner, intermediate, advanced, expert
 
 // ── SCREEN HELPERS ────────────────────────────────────────────────
 function showScreen(id) {
@@ -343,6 +354,28 @@ function showScreen(id) {
   if (id === 'scr-lobby') {
     refreshActiveGames();
   }
+}
+
+// ── AI DIFFICULTY SELECTOR ────────────────────────────────────────
+function selectDifficulty(level) {
+  aiDifficulty = level;
+  // Update button styles
+  ['beginner','intermediate','advanced','expert'].forEach(l => {
+    const btn = document.getElementById('diff-' + l);
+    if (btn) {
+      btn.classList.toggle('on', l === level);
+      btn.style.borderColor = l === level ? 'var(--ph)' : '';
+      btn.style.color = l === level ? 'var(--ph)' : '';
+    }
+  });
+  // Update description
+  const descs = {
+    beginner:   'Basic "rush and blast" AI — great for learning the game.',
+    intermediate: 'Context-aware AI that uses the Blackboard for situational awareness.',
+    advanced:   'Advanced tactics — weapon arc analysis and heat management.',
+    expert:     'Expert AI — utility scoring, personality profiles, Web Worker.'
+  };
+  document.getElementById('diff-desc').textContent = descs[level] || '';
 }
 
 function buildMapPresetsUI(containerId) {
@@ -991,6 +1024,12 @@ async function doStartGame() {
 // ── VS AI — start without a second human player ───────────────────
 async function doStartVsAI() {
   if (!isHost) { addLog('Only the host can start VS AI.', 'bad'); return; }
+
+  // Show the difficulty selector
+  const diffSection = document.getElementById('ai-difficulty-section');
+  if (diffSection) diffSection.style.display = 'block';
+  selectDifficulty(aiDifficulty);  // set initial selection state
+
   showSync('Starting VS AI…');
 
   // Claim both seats so the game can start (host = P1, AI = P2)
@@ -1114,12 +1153,119 @@ function buildBlackboard() {
   };
 }
 
-// ── AI PLAN GENERATOR ─────────────────────────────────────────────
-// Returns a plan object identical in shape to what submitPlan() writes to DB.
-// This function is the only place AI logic lives — it never touches resolveTurn
-// or any game state directly. It just reads the current mechs array and returns
-// a plan blob that the normal submission pipeline will handle.
-function aiGeneratePlan() {
+// ── AI PLAN GENERATOR V0.1 — Baseline "rush and blast" ──────────────
+// Simple greedy AI: move to closest enemy, fire best weapon.
+// Used for beginner difficulty.
+function aiGeneratePlanV01() {
+  const myMechs  = mechs.filter(m => m.player === 2 && !m.destroyed && !m.shutDown);
+  const enemies  = mechs.filter(m => m.player === 1 && !m.destroyed);
+
+  const mechOrders = [];
+  const fireOrds   = [];
+
+  myMechs.forEach(m => {
+    // ── MOVEMENT: move toward closest enemy, stop at best weapon range ──
+    const mpAvail = mechMpMax(m);
+    const cls     = MECH_CLASSES[m.cls];
+    const weapons = (cls?.weapons ?? []).filter(wk => !mechWeaponDisabled(m, wk));
+
+    // Find closest enemy
+    const closest = enemies.reduce((best, e) => {
+      const d = hexDist(m, e);
+      return (!best || d < best.d) ? { mech: e, d } : best;
+    }, null);
+
+    let destWx = m.wx, destWy = m.wy, mpSpent = 0;
+    let bestFacing = m.facing;
+    let visitedPath = null;
+
+    if (closest) {
+      const target = closest.mech;
+      // Preferred range: shortest max range of available weapons, clamped above 3
+      const prefRange = weapons.length > 0
+        ? Math.max(3, Math.min(...weapons.map(wk => WEAPONS[wk]?.range ?? 99)))
+        : 5;
+
+      const currentDist = hexDist(m, target);
+
+      // Face the enemy regardless of movement
+      const canvasBearing = Math.atan2(target.wy - m.wy, target.wx - m.wx) * 180 / Math.PI;
+      bestFacing = ((Math.round((canvasBearing + 90) / 30) * 30) % 360 + 360) % 360;
+
+      if (currentDist > prefRange) {
+        // Step toward enemy along vertex graph, spending up to mpAvail
+        let wx = m.wx, wy = m.wy, spent = 0;
+        const visited = [{ wx, wy }];
+        const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        if (path && path.length > 1) {
+          for (let step = 1; step < path.length; step++) {
+            const vk   = path[step];
+            const vPos = vertByKey.get(vk);
+            if (!vPos) break;
+            const midWx = (wx + vPos.wx) / 2, midWy = (wy + vPos.wy) / 2;
+            const cost   = terrainMpCost(midWx, midWy);
+            if (spent + cost > mpAvail) break;
+            // Don't step into the same hex as another mech
+            const blocked = mechs.some(other =>
+              other.id !== m.id && !other.destroyed &&
+              Math.hypot(other.wx - vPos.wx, other.wy - vPos.wy) < HS * 0.8
+            );
+            if (blocked) break;
+            wx    = vPos.wx; wy = vPos.wy; spent += cost;
+            visited.push({ wx, wy });
+            // Stop when we reach preferred range
+            const newDist = hexDist({ wx, wy }, target);
+            if (newDist <= prefRange) break;
+          }
+          destWx = wx; destWy = wy; mpSpent = spent;
+          visitedPath = visited.length > 1 ? visited : null;
+        }
+      }
+    }
+
+    mechOrders.push({
+      mech_id:      m.id,
+      wx:           destWx,
+      wy:           destWy,
+      final_facing: bestFacing,
+      mp_spent:     mpSpent,
+      path:         visitedPath
+    });
+
+    // ── FIRE: pick best weapon with a valid shot at closest enemy ──
+    if (closest) {
+      const target = closest.mech;
+      // Temporarily update facing/position so calcToHit sees the new planned state
+      const origWx = m.wx, origWy = m.wy, origF = m.facing, origMp = m.mpSpent;
+      m.wx = destWx; m.wy = destWy; m.facing = bestFacing; m.mpSpent = mpSpent;
+
+      let bestWeapon = null, bestTN = 99;
+      weapons.forEach(wk => {
+        const w  = WEAPONS[wk];
+        const tn = calcToHit(m, target, w);
+        if (tn !== null && tn < bestTN) { bestTN = tn; bestWeapon = wk; }
+      });
+
+      // Restore original state
+      m.wx = origWx; m.wy = origWy; m.facing = origF; m.mpSpent = origMp;
+
+      if (bestWeapon) {
+        fireOrds.push({ attacker_id: m.id, target_id: target.id, weapon: bestWeapon });
+      }
+    }
+  });
+
+  return {
+    submitted_at: new Date().toISOString(),
+    mech_orders:  mechOrders,
+    fire_orders:  fireOrds
+  };
+}
+
+// ── AI PLAN GENERATOR V0.2 — Blackboard + context-aware ─────────────
+// Uses the Blackboard for situational awareness. Retreating when outnumbered,
+// conservative firing when damaged. Configurable aggression parameter.
+function aiGeneratePlanV02() {
   // Build the blackboard — shared state context for AI reasoning
   buildBlackboard();
   const bb = blackboard;
@@ -1287,6 +1433,26 @@ function aiGeneratePlan() {
     mech_orders:  mechOrders,
     fire_orders:  fireOrds
   };
+}
+
+// ── AI DISPATCHER ───────────────────────────────────────────────────
+// Returns the AI plan generator function for the given difficulty level.
+// Difficulty levels: 'beginner' (V0.1), 'intermediate' (V0.2), 'advanced' (V0.3+), 'expert' (V0.4+)
+// Future phases add new versions here without modifying existing ones.
+function getAIPlanGenerator(difficulty) {
+  const difficultyMap = {
+    beginner:   aiGeneratePlanV01,
+    intermediate: aiGeneratePlanV02,
+    advanced:   aiGeneratePlanV02,  // placeholder — V0.3 will go here
+    expert:     aiGeneratePlanV02,  // placeholder — V0.4 will go here
+  };
+  return difficultyMap[difficulty] || aiGeneratePlanV01;
+}
+
+// ── AI PLAN GENERATOR (backward compat) ─────────────────────────────
+// Kept for any existing references — delegates to dispatcher with default difficulty.
+function aiGeneratePlan() {
+  return getAIPlanGenerator('beginner')();
 }
 
 async function leaveWaiting() {
@@ -1501,7 +1667,7 @@ async function submitPlan() {
   // VS AI: generate and submit the AI's plan immediately after the human submits
   if (vsAiMode) {
     addLog('— AI generating plan… —', 'ok');
-    const aiPlan = aiGeneratePlan();
+    const aiPlan = getAIPlanGenerator(aiDifficulty)();
 
     // Capture human plan from current mech state before any state mutation
     const myMechs = mechs.filter(m => m.player === myPlayer);
