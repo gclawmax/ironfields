@@ -2198,7 +2198,6 @@ function buildBlackboard() {
   // Heat state
   bb.friendlyShutDown = mechs.filter(m => m.player === myPlayer && m.shutDown).map(m => m.id);
   bb.friendlyHighHeat = mechs.filter(m => {
-    const m = mechs.find(x => x.id === m.id);
     return !m.destroyed && m.mpSpent > 0; // simplified — real heat tracking would be more complex
   }).map(m => m.id);
 
