@@ -1029,20 +1029,117 @@ async function doStartVsAI() {
   await logEvent('start');
 }
 
+// ── AI BLACKBOARD ───────────────────────────────────────────────────────
+// Central state database for AI reasoning. Populated each turn before plan generation.
+let blackboard = {
+  friendlyAlive: 0,
+  friendlyLost: 0,
+  friendlyDamaged: [],
+  enemyAlive: 0,
+  enemyLost: 0,
+  outnumbered: false,
+  extractionClose: false,
+  anyOverheated: false,
+  mechsUnderFire: [],
+  criticalThreat: null,
+  friendlyRatio: 1.0
+};
+
+/**
+ * Build the blackboard from current game state.
+ * Call this at the start of each AI turn.
+ */
+function buildBlackboard() {
+  const friendly = mechs.filter(m => m.player === 1 && !m.destroyed);
+  const friendlyLost = mechs.filter(m => m.player === 1 && m.destroyed);
+  const enemyAlive = mechs.filter(m => m.player === 2 && !m.destroyed);
+  const enemyLost = mechs.filter(m => m.player === 2 && m.destroyed);
+
+  // Damaged = lost more than 50% HP
+  const friendlyDamaged = friendly.filter(m => (m.hp ?? m.maxHp) < (m.maxHp ?? 100) * 0.5).map(m => m.id);
+
+  // Overheated = above 80% heat
+  const anyOverheated = friendly.some(m => (m.heat ?? 0) > (m.maxHeat ?? 100) * 0.8);
+
+  // Threat assessment: which friendly mechs have enemies within weapon range?
+  const mechsUnderFire = [];
+  friendly.forEach(fm => {
+    const threatened = enemyAlive.some(em => {
+      const dist = hexDist(fm, em);
+      const enemyCls = MECH_CLASSES[em.cls];
+      if (!enemyCls) return false;
+      return enemyCls.weapons.some(wk => {
+        const w = WEAPONS[wk];
+        return w && dist <= (w.range ?? 99);
+      });
+    });
+    if (threatened) mechsUnderFire.push(fm.id);
+  });
+
+  // Critical threat = friendly mech with most enemies in range
+  let criticalThreat = null;
+  let maxThreats = 0;
+  friendly.forEach(fm => {
+    const threats = enemyAlive.filter(em => {
+      const dist = hexDist(fm, em);
+      const enemyCls = MECH_CLASSES[em.cls];
+      if (!enemyCls) return false;
+      return enemyCls.weapons.some(wk => {
+        const w = WEAPONS[wk];
+        return w && dist <= (w.range ?? 99);
+      });
+    }).length;
+    if (threats > maxThreats) {
+      maxThreats = threats;
+      criticalThreat = fm.id;
+    }
+  });
+
+  // Ratio and extraction logic
+  const friendlyRatio = enemyAlive.length > 0 ? friendly.length / enemyAlive.length : 1.0;
+  const extractionClose = false; // Phase 4 feature — not yet implemented
+
+  blackboard = {
+    friendlyAlive: friendly.length,
+    friendlyLost: friendlyLost.length,
+    friendlyDamaged: friendlyDamaged,
+    enemyAlive: enemyAlive.length,
+    enemyLost: enemyLost.length,
+    outnumbered: friendlyRatio < 1.0,
+    extractionClose: extractionClose,
+    anyOverheated: anyOverheated,
+    mechsUnderFire: mechsUnderFire,
+    criticalThreat: criticalThreat,
+    friendlyRatio: friendlyRatio
+  };
+}
+
 // ── AI PLAN GENERATOR ─────────────────────────────────────────────
 // Returns a plan object identical in shape to what submitPlan() writes to DB.
 // This function is the only place AI logic lives — it never touches resolveTurn
 // or any game state directly. It just reads the current mechs array and returns
 // a plan blob that the normal submission pipeline will handle.
 function aiGeneratePlan() {
-  const myMechs  = mechs.filter(m => m.player === 2 && !m.destroyed && !m.shutDown);
-  const enemies  = mechs.filter(m => m.player === 1 && !m.destroyed);
+  // Build the blackboard — shared state context for AI reasoning
+  buildBlackboard();
+  const bb = blackboard;
+
+  // AI player is always player 2 (the opponent)
+  const aiPlayer = 2;
+  const myMechs  = mechs.filter(m => m.player === aiPlayer && !m.destroyed && !m.shutDown);
+  const enemies  = mechs.filter(m => m.player !== aiPlayer && !m.destroyed);
+
+  // ── AI PERSONALITY CONFIG ─────────────────────────────────────────
+  // Simple aggression parameter — higher = more aggressive (rushes in)
+  // Lower = more cautious (stays at range, avoids risk)
+  // Can be extended later with JSON personality profiles (Phase 3)
+  const aggression = 0.5;  // 0.0 = purely defensive, 1.0 = all-in rush
 
   const mechOrders = [];
   const fireOrds   = [];
 
   myMechs.forEach(m => {
-    // ── MOVEMENT: move toward closest enemy, stop at best weapon range ──
+    // ── MOVEMENT: context-aware positioning ──
     const mpAvail = mechMpMax(m);
     const cls     = MECH_CLASSES[m.cls];
     const weapons = (cls?.weapons ?? []).filter(wk => !mechWeaponDisabled(m, wk));
@@ -1070,8 +1167,48 @@ function aiGeneratePlan() {
       const canvasBearing = Math.atan2(target.wy - m.wy, target.wx - m.wx) * 180 / Math.PI;
       bestFacing = ((Math.round((canvasBearing + 90) / 30) * 30) % 360 + 360) % 360;
 
-      if (currentDist > prefRange) {
-        // Step toward enemy along vertex graph, spending up to mpAvail
+      // ── BLACKBOARD INFLUENCE ON MOVEMENT ──
+      // If outnumbered and this mech is damaged, prefer defensive positioning
+      const isDamaged = bb.friendlyDamaged.includes(m.id);
+      const isRetreating = bb.outnumbered && isDamaged && aggression < 0.7;
+
+      // If extraction is closing, prefer moving toward center (safe zone)
+      const isRetreatingExtraction = bb.extractionClose && isDamaged;
+
+      if (isRetreating || isRetreatingExtraction) {
+        // Move AWAY from enemy — create distance for defensive play
+        if (currentDist < prefRange * 1.5) {
+          // Already in range — back up
+          const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+          if (path && path.length > 1) {
+            // Reverse the path to go away from target
+            const reversePath = path.slice().reverse();
+            let wx = m.wx, wy = m.wy, spent = 0;
+            const visited = [{ wx, wy }];
+            for (let step = 1; step < reversePath.length; step++) {
+              const vk   = reversePath[step];
+              const vPos = vertByKey.get(vk);
+              if (!vPos) break;
+              const midWx = (wx + vPos.wx) / 2, midWy = (wy + vPos.wy) / 2;
+              const cost   = terrainMpCost(midWx, midWy);
+              if (spent + cost > mpAvail) break;
+              const blocked = mechs.some(other =>
+                other.id !== m.id && !other.destroyed &&
+                Math.hypot(other.wx - vPos.wx, other.wy - vPos.wy) < HS * 0.8
+              );
+              if (blocked) break;
+              wx    = vPos.wx; wy = vPos.wy; spent += cost;
+              visited.push({ wx, wy });
+              // Stop when we've created enough distance
+              const newDist = hexDist({ wx, wy }, target);
+              if (newDist >= prefRange * 2) break;
+            }
+            destWx = wx; destWy = wy; mpSpent = spent;
+            visitedPath = visited.length > 1 ? visited : null;
+          }
+        }
+      } else if (currentDist > prefRange) {
+        // Normal: step toward enemy along vertex graph, spending up to mpAvail
         let wx = m.wx, wy = m.wy, spent = 0;
         const visited = [{ wx, wy }];
         const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
@@ -1124,12 +1261,24 @@ function aiGeneratePlan() {
         if (tn !== null && tn < bestTN) { bestTN = tn; bestWeapon = wk; }
       });
 
+      // ── BLACKBOARD INFLUENCE ON FIRE ──
+      // If this mech is damaged and outnumbered, prefer lower-damage but safer shots
+      // (e.g., avoid overcommitting to a high-TN shot)
+      const isDamaged = bb.friendlyDamaged.includes(m.id);
+      if (isDamaged && bb.outnumbered && bestTN > 8) {
+        // Only fire if TN is reasonable — otherwise hold fire (conservative)
+        if (bestTN <= 10) {
+          fireOrds.push({ attacker_id: m.id, target_id: target.id, weapon: bestWeapon });
+        }
+        // else: skip firing, conserve this mech for later
+      } else {
+        if (bestWeapon) {
+          fireOrds.push({ attacker_id: m.id, target_id: target.id, weapon: bestWeapon });
+        }
+      }
+
       // Restore original state
       m.wx = origWx; m.wy = origWy; m.facing = origF; m.mpSpent = origMp;
-
-      if (bestWeapon) {
-        fireOrds.push({ attacker_id: m.id, target_id: target.id, weapon: bestWeapon });
-      }
     }
   });
 
@@ -1929,6 +2078,87 @@ let weaponLabelsHover  = localStorage.getItem('if_wp_hover') !== '0'; // default
 let selectedTerrainType = 'woods_light';  // terrain type currently selected in editor
 let selectedElevationMode = false;        // true = painting elevation, false = painting terrain type
 let selectedElevationLevel = 1;          // 0=LOW 1=MID 2=HIGH — level to paint
+
+// ── BLACKBOARD (Phase 2 AI Architecture) ────────────────────────────
+// Central state database for AI reasoning. Populated each turn from
+// the current mechs array and game state. The AI reads this to make
+// contextually appropriate decisions instead of greedy nearest-neighbor.
+let blackboard = {};  // populated by buildBlackboard()
+
+function buildBlackboard() {
+  const bb = {
+    turnNumber:     1,
+    totalTurns:     10,  // configurable — used for late-game pressure
+    friendlyLost:   [],
+    friendlyLowAmmo:[],
+    friendlyShutDown:[],
+    friendlyLowHeat:[],
+    friendlyHighHeat:[],
+    friendlyDamaged:[], // hp < 50%
+    enemyPositions: [], // [{ id, wx, wy, lastSeenTurn }]
+    extractionClose:false,
+    // Derived aggregate facts
+    leaderDown:     false,
+    outnumbered:    false,
+    surrounded:     false,
+    ammoCritical:   false,
+    heatCritical:   false,
+  };
+
+  const myMechs = mechs.filter(m => m.player === myPlayer);
+  const allEnemies = mechs.filter(m => m.player !== myPlayer);
+  const totalFriendly = mechs.filter(m => m.player === myPlayer).length;
+  const totalEnemy = mechs.filter(m => m.player !== myPlayer).length;
+
+  // Count destroyed/lost mechs
+  bb.friendlyLost = mechs.filter(m => m.player === myPlayer && m.destroyed).map(m => m.id);
+  bb.leaderDown = bb.friendlyLost.length > 0;  // first mech = leader for now
+
+  // Heat state
+  bb.friendlyShutDown = mechs.filter(m => m.player === myPlayer && m.shutDown).map(m => m.id);
+  bb.friendlyHighHeat = mechs.filter(m => {
+    const m = mechs.find(x => x.id === m.id);
+    return !m.destroyed && m.mpSpent > 0; // simplified — real heat tracking would be more complex
+  }).map(m => m.id);
+
+  // Damage state
+  bb.friendlyDamaged = mechs.filter(m => {
+    if (m.player !== myPlayer || m.destroyed) return false;
+    const cls = MECH_CLASSES[m.cls];
+    const maxHp = cls?.hp ?? 100;
+    return (m.hp ?? maxHp) < maxHp * 0.5;
+  }).map(m => m.id);
+
+  // Ammo state — check if mech has any weapons with limited ammo
+  bb.friendlyLowAmmo = mechs.filter(m => {
+    if (m.player !== myPlayer || m.destroyed) return false;
+    const cls = MECH_CLASSES[m.cls];
+    const weapons = cls?.weapons ?? [];
+    return weapons.some(wk => {
+      const w = WEAPONS[wk];
+      return w?.ammo && w.ammo !== 'unlimited';
+    });
+  }).map(m => m.id);
+
+  // Enemy positions (simplified — in a full game these would track last-seen turn)
+  bb.enemyPositions = allEnemies.map(e => ({
+    id: e.id,
+    wx: e.wx,
+    wy: e.wy,
+    lastSeenTurn: 1,  // TODO: track actual last-seen turn
+  }));
+
+  // Aggregate facts
+  bb.outnumbered = totalEnemy > totalFriendly;
+  bb.ammoCritical = bb.friendlyLowAmmo.length > totalFriendly * 0.5;
+  bb.heatCritical = bb.friendlyHighHeat.length > totalFriendly * 0.5;
+
+  // Extraction close — if turn > 75% of total, extraction is closing
+  bb.extractionClose = bb.turnNumber > bb.totalTurns * 0.75;
+
+  blackboard = bb;
+  return bb;
+}
 
 // ── DISPLAY SETTINGS ─────────────────────────────────────────────
 // Persisted in localStorage. Controls theme, brightness, and text size globally.
