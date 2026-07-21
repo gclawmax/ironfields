@@ -4500,7 +4500,7 @@ canvas.addEventListener('click', e => {
     return;
   }
   if (mode === 'select') {
-    if (near) selMech(near.id);
+    if (near) { selMech(near.id); setMode('move'); return; }
     else { selId = null; updatePanel(); buildRoster(); draw(); }
   }
   if (mode === 'move') {
@@ -4508,6 +4508,10 @@ canvas.addEventListener('click', e => {
       // Only allow selecting own mechs to move
       if (near.player !== myPlayer) return;
       selMech(near.id); return;
+    }
+    if (near && near.id === selId) {
+      // Clicking on selected mech cycles to fire mode
+      setMode('fire'); return;
     }
     if (selId && hovVert) {
       const m    = mechs.find(x => x.id === selId);
@@ -4567,9 +4571,8 @@ canvas.addEventListener('click', e => {
     if (!near) return;
     const isMine = near.player === myPlayer;
     if (isMine) {
-      // Clicking own mech selects it as the attacker
-      selMech(near.id);
-      return;
+      // Clicking own mech cycles back to move mode
+      setMode('move'); return;
     }
     // Clicking an enemy assigns a fire order for the selected weapon
     if (!selId) {
@@ -4624,6 +4627,7 @@ canvas.addEventListener('contextmenu', e => {
     updateWeaponPicker(null); buildRoster(); draw();
     return;
   }
+  setMode('select');
   selId = null;
   updatePanel(); buildRoster(); draw();
 });
