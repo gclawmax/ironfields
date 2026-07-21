@@ -221,6 +221,7 @@
   </div>
   <div class="userbar">
     <span style="color:var(--dim);font-size:8px;letter-spacing:1px;opacity:0.6;" title="Build version">v2.7</span>
+    <span id="hPlayers">P1: — / P2: —</span>
     <span>PILOT: <b id="hUser">—</b></span>
     <button class="auth-btn sec" style="padding:3px 8px;font-size:8px;" onclick="returnToLobby()">LOBBY</button>
     <button class="auth-btn sec" style="padding:3px 8px;font-size:8px;color:var(--red);border-color:rgba(255,68,68,0.4);" onclick="confirmEndGame()">END GAME</button>
@@ -1345,10 +1346,11 @@ function aiGeneratePlanV02() {
               if (vPos) candidates.push(vPos);
             }
           }
-          // Also try perpendicular neighbors for angle adjustment
+          // Also try adjacent vertices for angle adjustment
           const dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,1],[-1,1],[1,-1]];
           dirs.forEach(([dq, dr]) => {
-            const nv = getVert(m.wx + dq, m.wy + dr);
+            const nvk = vertKey(m.wx + dq, m.wy + dr);
+            const nv = vertByKey.get(nvk);
             if (nv) {
               const blocked = mechs.some(other =>
                 other.id !== m.id && !other.destroyed &&
@@ -2606,6 +2608,22 @@ function loadStateFromGame(state) {
   if (state.lancePicks?.p2) lancePicksP2 = state.lancePicks.p2;
 }
 
+// ── UPDATE PLAYER NAMES IN HEADER ───────────────────────────────
+function updatePlayerHeader() {
+  const el = document.getElementById('hPlayers');
+  if (!el) return;
+
+  // Get P1 and P2 mech names from the loaded mechs list
+  const p1Mechs = mechs.filter(m => m.player === 1);
+  const p2Mechs = mechs.filter(m => m.player === 2);
+  const p1Name = p1Mechs.length > 0 ? p1Mechs[0].pilotName || p1Mechs[0].name || '—' : '—';
+  const p2Name = vsAiMode
+    ? `AI ${aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1)}`
+    : (p2Mechs.length > 0 ? p2Mechs[0].pilotName || p2Mechs[0].name || '—' : '—');
+
+  el.textContent = `P1: ${p1Name} / P2: ${p2Name}`;
+}
+
 function loadStateFromDB(gameRow) {
   if (gameRow.state) {
     startStateCache = gameRow.state;
@@ -2626,6 +2644,8 @@ function enterGame() {
   showScreen(null);
   document.getElementById('hTurn').textContent = turnNumber;
   loadStateFromGame(startStateCache || { mechs: [], turn: 1 });
+  // Update player names in header
+  updatePlayerHeader();
   // Defer canvas setup one frame so flex layout has been computed
   requestAnimationFrame(() => {
     const careaEl = document.getElementById('carea');
