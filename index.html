@@ -1364,6 +1364,37 @@ function aiGeneratePlanV02() {
           });
         }
 
+        // 3. 2-hop fallback — when direct neighbors are blocked by teammates,
+        //    try vertices 2 steps away to slip around the formation
+        if (candidates.length === 0 && adjList) {
+          adjList.forEach(adjK => {
+            const midV = vertByKey.get(adjK);
+            if (!midV) return;
+            const adj2List = vertNeighbours.get(adjK);
+            if (!adj2List) return;
+            adj2List.forEach(adj2K => {
+              if (adj2K === myKey) return; // skip going back
+              const nv2 = vertByKey.get(adj2K);
+              if (!nv2) return;
+              const blocked = mechs.some(other =>
+                other.id !== m.id && !other.destroyed &&
+                Math.hypot(other.wx - nv2.wx, other.wy - nv2.wy) < HS * 0.8
+              );
+              if (!blocked) {
+                // Cost is sum of two hops
+                const midWx = (m.wx + midV.wx) / 2, midWy = (m.wy + midV.wy) / 2;
+                const hop1Cost = terrainMpCost(midWx, midWy);
+                const nextWx = (midV.wx + nv2.wx) / 2, nextWy = (midV.wy + nv2.wy) / 2;
+                const hop2Cost = terrainMpCost(nextWx, nextWy);
+                const totalCost = hop1Cost + hop2Cost;
+                if (totalCost <= mpAvail) {
+                  candidates.push({ wx: nv2.wx, wy: nv2.wy, cost: totalCost });
+                }
+              }
+            });
+          });
+        }
+
         // Pick the candidate that improves our position
         let bestCand = null, bestScore = -1;
         candidates.forEach(cand => {
@@ -1382,8 +1413,7 @@ function aiGeneratePlanV02() {
         });
 
         if (bestCand) {
-          const midWx = (m.wx + bestCand.wx) / 2, midWy = (m.wy + bestCand.wy) / 2;
-          const cost = terrainMpCost(midWx, midWy);
+          const cost = bestCand.cost ?? terrainMpCost((m.wx + bestCand.wx) / 2, (m.wy + bestCand.wy) / 2);
           if (cost <= mpAvail) {
             destWx = bestCand.wx; destWy = bestCand.wy; mpSpent = cost;
             visitedPath = [{ wx: m.wx, wy: m.wy }, { wx: destWx, wy: destWy }];
