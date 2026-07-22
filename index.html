@@ -2290,6 +2290,9 @@ async function resolveTurn(plans) {
     orders.forEach(order => {
       const m = mechs.find(x => x.id === order.mech_id);
       if (!m) return;
+      // DEBUG: log position before and after
+      console.log(`[DEBUG] ${m.name} (player ${m.player}) order: wx=${order.wx} wy=${order.wy} facing=${order.final_facing} path=${order.path ? 'YES' : 'NO'}`);
+      console.log(`[DEBUG] ${m.name} BEFORE: wx=${m.wx} wy=${m.wy} facing=${m.facing}`);
       m.wx      = order.wx;
       m.wy      = order.wy;
       m.facing  = order.final_facing;
@@ -2297,6 +2300,7 @@ async function resolveTurn(plans) {
       m.mpSpentLastTurn = order.mp_spent ?? m.mpSpent;
       m.lastMovePath    = order.path || null;  // full route for trail rendering
       m.mpSpent = 0;
+      console.log(`[DEBUG] ${m.name} AFTER: wx=${m.wx} wy=${m.wy} facing=${m.facing} path=${m.lastMovePath ? 'YES' : 'NO'}`);
 
       // Log enemy movement in red
       if (isEnemy) {
