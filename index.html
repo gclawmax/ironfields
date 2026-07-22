@@ -1065,14 +1065,18 @@ function highlightDifficultyButton(level) {
 async function startVsAIWithDifficulty() {
   showSync('Starting VS AI…');
 
-  // Claim both seats so the game can start (host = P1, AI = P2)
+  // Require the user to have already claimed P1 through the lobby
   const { data: g0 } = await db.from('ironfield_games').select('*').eq('id', gameId).single();
   if (!g0) { showSyncErr(); return; }
 
-  // Auto-assign P1 to host if not already claimed
+  if (g0.p1_id !== currentUser.id) {
+    showSync('You must claim the Player 1 seat before starting.');
+    return;
+  }
+
+  // Auto-assign P2 to host (AI occupies P2 slot with host's uid)
   const updates = {};
-  if (!g0.p1_id) updates.p1_id = currentUser.id;
-  if (!g0.p2_id) updates.p2_id = currentUser.id;  // AI occupies P2 slot with host's uid (harmless)
+  if (!g0.p2_id) updates.p2_id = currentUser.id;
 
   if (Object.keys(updates).length) {
     await db.from('ironfield_games').update(updates).eq('id', gameId);
