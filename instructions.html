@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ironfields — Instructions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ph:#00ff88;--phd:#00994d;--phf:#001a0d;
+    --red:#ff4444;--rdd:#6a1a1a;
+    --amb:#ffaa00;--blu:#88aaff;
+    --bg:#060a07;--pan:#08100a;--bdr:#14221a;
+    --txt:#00cc66;--dim:#005522;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:'Share Tech Mono',monospace;
+    background:var(--bg);color:var(--txt);
+    line-height:1.6;min-height:100vh;
+  }
+  a { color:var(--ph);text-decoration:none; }
+  a:hover { color:var(--blu); }
+
+  /* ── HEADER ─────────────────────────────────────── */
+  .instr-header {
+    background:var(--pan);border-bottom:1px solid var(--bdr);
+    padding:16px 24px;display:flex;align-items:center;gap:16px;
+  }
+  .instr-header .logo { font-size:20px;letter-spacing:2px;color:var(--ph); }
+  .instr-header .logo em { color:var(--txt);font-style:normal; }
+  .instr-header .back-btn {
+    margin-left:auto;background:transparent;border:1px solid var(--bdr);
+    color:var(--dim);padding:6px 14px;font-family:inherit;font-size:11px;
+    cursor:pointer;letter-spacing:1px;transition:all .15s;
+  }
+  .instr-header .back-btn:hover { color:var(--ph);border-color:var(--ph); }
+
+  /* ── MAIN CONTENT ───────────────────────────────── */
+  .instr-main {
+    max-width:960px;margin:0 auto;padding:32px 24px 80px;
+  }
+  .instr-main h1 {
+    font-size:22px;letter-spacing:2px;color:var(--ph);
+    border-bottom:1px solid var(--bdr);padding-bottom:10px;margin-bottom:24px;
+  }
+  .instr-main h2 {
+    font-size:15px;letter-spacing:1.5px;color:var(--blu);
+    margin:32px 0 12px;text-transform:uppercase;
+  }
+  .instr-main h3 {
+    font-size:13px;color:var(--amb);margin:20px 0 8px;
+  }
+  .instr-main p { margin-bottom:12px;font-size:12px; }
+  .instr-main ul { margin:8px 0 16px 20px;font-size:12px; }
+  .instr-main li { margin-bottom:4px; }
+  .instr-main strong { color:var(--ph); }
+  .instr-main em { color:var(--dim); }
+
+  /* ── COMPARISON TABLE ───────────────────────────── */
+  .comp-table {
+    width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:11px;
+  }
+  .comp-table th {
+    text-align:left;padding:8px 12px;background:var(--pan);
+    border:1px solid var(--bdr);color:var(--blu);letter-spacing:1px;
+    font-size:10px;text-transform:uppercase;
+  }
+  .comp-table td {
+    padding:8px 12px;border:1px solid var(--bdr);vertical-align:top;
+  }
+  .comp-table tr:nth-child(even) td { background:rgba(0,255,136,0.02); }
+  .comp-table .col-bt { color:var(--dim);max-width:280px; }
+  .comp-table .col-if { color:var(--txt);max-width:320px; }
+
+  /* ── INFO BOXES ─────────────────────────────────── */
+  .info-box {
+    border:1px solid var(--bdr);padding:14px 18px;margin:16px 0;
+    background:rgba(0,255,136,0.02);
+  }
+  .info-box.warn { border-color:var(--rdd);background:rgba(255,68,68,0.03); }
+  .info-box.warn .info-title { color:var(--red); }
+  .info-box .info-title {
+    font-size:11px;letter-spacing:1px;color:var(--ph);margin-bottom:6px;
+    text-transform:uppercase;
+  }
+
+  /* ── SECTION DIVIDER ────────────────────────────── */
+  .divider {
+    border:none;border-top:1px solid var(--bdr);margin:32px 0;
+  }
+
+  /* ── RESPONSIVE ─────────────────────────────────── */
+  @media(max-width:640px) {
+    .comp-table { font-size:10px; }
+    .comp-table th, .comp-table td { padding:6px 8px; }
+    .instr-main { padding:20px 14px 60px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ─────────────────────────────────────────────── -->
+<header class="instr-header">
+  <div class="logo">IRON<em>FIELDS</em></div>
+  <button class="back-btn" onclick="window.location.href='index.html'">← BACK TO GAME</button>
+</header>
+
+<!-- ── CONTENT ────────────────────────────────────────────── -->
+<main class="instr-main">
+
+<h1>// INSTRUCTIONS & RULES OVERVIEW</h1>
+
+<p>
+  <strong>Ironfields</strong> is a tactical hex-based mech combat game inspired by
+  classic tabletop games like <em>BattleTech</em>. While it shares the genre's DNA,
+  Ironfields streamlines several mechanics to keep combat fast, readable, and
+  focused on positioning and timing rather than bookkeeping.
+</p>
+
+<p>
+  This page explains how Ironfields works and how it differs from BattleTech.
+  If you're new to the genre, read through the sections below. If you already
+  know BattleTech, jump straight to the <a href="#comparison">comparison table</a>.
+</p>
+
+<hr class="divider">
+
+<h2 id="basics">// 1. BASIC CONCEPTS</h2>
+
+<h3>Hex Grid</h3>
+<p>
+  The battlefield is a grid of hexagons (six-sided cells). Each hex represents
+  a fixed distance — moving from one hex to an adjacent one costs Movement
+  Points (MP). Your mechs are stationed on vertices between hexes, which gives
+  smoother movement arcs and more natural facing directions.
+</h3>
+
+<h3>Movement Points (MP)</h3>
+<p>
+  Every mech has a maximum MP value based on its chassis class. Moving costs MP
+  proportional to terrain type. You spend MP as you walk along the vertex graph,
+  and you stop when MP runs out or you reach your destination.
+</p>
+
+<h3>Facing</h3>
+<p>
+  Mechs face in one of <strong>12 directions</strong> (every 30°), not just the
+  hex grid's axial directions. This gives much finer aiming control. Your
+  weapons have <strong>frontal arcs</strong> — you must be facing the right way
+  to fire. The facing cone is shown in green (your arc) and red (enemy arc)
+  when you select a weapon.
+</p>
+
+<h3>Turn Structure</h3>
+<p>
+  1. <strong>Planning Phase</strong> — You give orders to every mech in your lance:
+     move, rotate, or fire. Orders are <em>simultaneous</em>: all mechs execute
+     at once.<br>
+  2. <strong>Resolution Phase</strong> — All movement happens, then all shots
+     resolve. You cannot cancel orders once submitted.<br>
+  3. <strong>Next Turn</strong> — Repeat until one side is eliminated.
+</p>
+
+<div class="info-box">
+  <div class="info-title">Key difference from BattleTech</div>
+  <p>
+    In BattleTech, units activate one at a time in an initiative order. In
+    Ironfields, <strong>all orders are submitted simultaneously</strong> then
+    resolved together. This means you plan your whole lance's actions before
+    anything happens — no reactive turns, no initiative rolls.
+  </p>
+</div>
+
+<hr class="divider">
+
+<h2 id="controls">// 2. CONTROLS</h2>
+
+<h3>Selecting Units</h3>
+<ul>
+  <li><strong>Left-click</strong> a mech to select it.</li>
+  <li>Clicking a selected mech cycles to <strong>Fire mode</strong>.</li>
+  <li><strong>Right-click</strong> anywhere to reset selection and return to Select mode.</li>
+</ul>
+
+<h3>Moving</h3>
+<ul>
+  <li>Select a mech, click <strong>[ MOVE ]</strong> in the toolbar, then click a destination vertex on the map.</li>
+  <li>The path is highlighted as you move your cursor. Click to confirm.</li>
+  <li>If a path is blocked by terrain or another mech, you can't select that destination.</li>
+  <li><strong>[ UNDO ]</strong> reverts the last move of the selected mech.</li>
+</ul>
+
+<h3>Firing</h3>
+<ul>
+  <li>Select a mech, click <strong>[ FIRE ]</strong>, then pick a weapon from the right panel.</li>
+  <li>Click an enemy mech to assign the fire order.</li>
+  <li>If no enemy is in range, the weapon shows a <strong>"No Shot"</strong> warning but you can still assign the order (for predictive targeting).</li>
+  <li><strong>[ CLEAR ORDER ]</strong> removes the selected weapon's fire order.</li>
+</ul>
+
+<h3>Other Modes</h3>
+<ul>
+  <li><strong>[ ROTATE ]</strong> — change a mech's facing without moving.</li>
+  <li><strong>[ LOS ]</strong> — Line of Sight check. Shows which hexes are visible from the selected mech.</li>
+  <li><strong>[ OUTLINE ]</strong> — toggle mech outline visibility on the map.</li>
+</ul>
+
+<hr class="divider">
+
+<h2 id="combat">// 3. COMBAT BASICS</h2>
+
+<h3>Weapons & Heat</h3>
+<p>
+  Every mech carries weapons drawn from its chassis template. Each weapon has:
+</p>
+<ul>
+  <li><strong>Range</strong> — maximum hexes the shot can travel.</li>
+  <li><strong>Heat</strong> — how much heat the weapon generates per shot.</li>
+  <li><strong>To-Hit number</strong> — higher numbers are easier to hit (1–6 dice roll).</li>
+  <li><strong>Damage</strong> — usually expressed as Xd6 (roll that many six-sided dice).</li>
+</ul>
+
+<p>
+  Mechs generate heat from movement and firing. If heat exceeds the mech's
+  capacity, it <strong>overheats</strong> and shuts down temporarily. Managing
+  heat is a core tactical decision.
+</p>
+
+<h3>Armor & Hit Locations</h3>
+<p>
+  Each mech has armor values for five locations:
+  <strong>Head, Torso (front/rear), and Arms (left/right)</strong>.
+  Critical hits destroy weapons or systems in specific locations.
+</p>
+
+<div class="info-box warn">
+  <div class="info-title">Simplification note</div>
+  <p>
+    Ironfields abstracts hit-location tracking. You don't manually roll for
+    where a shot lands — the system calculates location probability based on
+    your facing arc and the enemy's orientation. This keeps combat flowing
+    without sacrificing tactical depth.
+  </p>
+</div>
+
+<h3>Damage</h3>
+<ul>
+  <li>Each location has a <strong>HP value</strong>. When HP reaches 0, the location is <strong>destroyed</strong>.</li>
+  <li>Destroyed locations lose their weapons and systems permanently.</li>
+  <li>The <strong>Head</strong> and <strong>Torso</strong> cannot be destroyed (they cap at 0 HP).</li>
+  <li>A mech is <strong>eliminated</strong> when its Torso is destroyed or it takes catastrophic damage.</li>
+</ul>
+
+<hr class="divider">
+
+<h2 id="ai">// 4. AI DIFFICULTY TIERS</h2>
+
+<p>Ironfields includes four AI opponents, each with distinct behaviour:</p>
+
+<table class="comp-table">
+  <thead>
+    <tr>
+      <th>Tier</th>
+      <th>Behaviour</th>
+      <th>Best For</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="color:var(--ph)">Beginner</td>
+      <td>Rushes the closest enemy and fires the best available weapon. Aggressive, predictable.</td>
+      <td>Learning the controls</td>
+    </tr>
+    <tr>
+      <td style="color:var(--blu)">Intermediate</td>
+      <td>Uses A* pathfinding, holds position when in range, conservative movement. Will flank if blocked.</td>
+      <td>Practicing positioning</td>
+    </tr>
+    <tr>
+      <td style="color:var(--amb)">Advanced</td>
+      <td>Utility scoring — evaluates all enemies by threat, value, and optimal range. Retreats when outnumbered and damaged.</td>
+      <td>Testing tactical planning</td>
+    </tr>
+    <tr>
+      <td style="color:var(--red)">Expert</td>
+      <td>Personality profiles with emotional states (fear, rage, panic). Makes suboptimal decisions that feel human.</td>
+      <td>Experienced players seeking challenge</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr class="divider">
+
+<h2 id="comparison">// 5. BATTLETECH VS IRONFIELDS — COMPARISON</h2>
+
+<p>
+  If you're coming from BattleTech, here's how the two systems compare across
+  the major mechanical differences:
+</p>
+
+<table class="comp-table">
+  <thead>
+    <tr>
+      <th>Aspect</th>
+      <th class="col-bt">BattleTech</th>
+      <th class="col-if">Ironfields</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Grid</strong></td>
+      <td class="col-bt">Hex grid. Units occupy entire hexes.</td>
+      <td class="col-if">Sub-triangle grid. Units sit on vertices between hexes, allowing smoother movement and finer positioning.</td>
+    </tr>
+    <tr>
+      <td><strong>Activation</strong></td>
+      <td class="col-bt">Initiative order — units activate one at a time. First player moves, then second, etc.</td>
+      <td class="col-if">Simultaneous planning — all orders submitted at once, then resolved together. No initiative rolls.</td>
+    </tr>
+    <tr>
+      <td><strong>Facing</strong></td>
+      <td class="col-bt">Six frontal arcs (30° each) tied to hex orientation. Changing facing costs MP.</td>
+      <td class="col-if">12 directions (every 30°), independent of movement. Facing changes are free actions.</td>
+    </tr>
+    <tr>
+      <td><strong>Movement</strong></td>
+      <td class="col-bt">Walk/Jump/Run phases. Different MP costs. Turning during movement is complex.</td>
+      <td class="col-if">Single movement phase. Walk along vertex graph, spending MP per hex. No separate jump/run phases.</td>
+    </tr>
+    <tr>
+      <td><strong>Heat</strong></td>
+      <td class="col-bt">Heat generated by weapons and engines. Internal Structure damage can cause overheating.</td>
+      <td class="col-if">Simplified heat — generated by weapons and movement. No engine heat subsystem.</td>
+    </tr>
+    <tr>
+      <td><strong>Hit Locations</strong></td>
+      <td class="col-bt">Roll 2d6 to determine hit location. Critical hit table for each location.</td>
+      <td class="col-if">Location probability calculated automatically based on facing arc and orientation. No manual location rolls.</td>
+    </tr>
+    <tr>
+      <td><strong>Line of Sight</strong></td>
+      <td class="col-bt">Trace line through hex centres. Complex rules for elevation, intervening units, and terrain.</td>
+      <td class="col-if">Simplified LOS check. Visual overlay shows visible hexes from selected unit.</td>
+    </tr>
+    <tr>
+      <td><strong>Multiplayer</strong></td>
+      <td class="col-bt">Tabletop only (face-to-face or online via BattleTech Online/Tabletop Simulator).</td>
+      <td class="col-if">Built-in online multiplayer. Real-time simultaneous planning with host authority.</td>
+    </tr>
+    <tr>
+      <td><strong>Chassis Selection</strong></td>
+      <td class="col-bt">Full tech manual — hundreds of mechs with detailed stats.</td>
+      <td class="col-if">Template-based — three chassis classes (Light, Medium, Heavy) with balanced weapon pools.</td>
+    </tr>
+    <tr>
+      <td><strong>Speed</strong></td>
+      <td class="col-bt">A single turn can take 30–60 minutes with a full lance.</td>
+      <td class="col-if">Designed for faster play — typical engagement 10–20 minutes.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="info-box">
+  <div class="info-title">Design philosophy</div>
+  <p>
+    Ironfields isn't trying to replicate BattleTech exactly. It takes the
+    <em>feel</em> of tactical mech combat — positioning, heat management,
+    arc-based firing, lance coordination — and strips away the bookkeeping
+    that slows play down. The result is a game that's quicker to learn,
+    faster to play, and easier to run online.
+  </p>
+</div>
+
+<hr class="divider">
+
+<h2 id="tips">// 6. QUICK TIPS</h2>
+
+<ul>
+  <li><strong>Don't cluster your lance.</strong> Spread out on the vertex grid to maximise your firing arcs and minimise collateral damage.</li>
+  <li><strong>Watch your heat.</strong> Firing everything in one volley is tempting but leaves you vulnerable next turn.</li>
+  <li><strong>Use the [ LOS ] mode.</strong> Before committing to a position, check what your mechs can actually see and shoot at.</li>
+  <li><strong>Right-click to reset.</strong> If you've made a mistake or changed your mind, right-click anywhere to clear selection and start over.</li>
+  <li><strong>Predictive targeting.</strong> Weapons that can't currently fire will show a warning but still accept the order — useful for setting up crossfires.</li>
+  <li><strong>Face your enemies.</strong> Weapons only fire within your frontal arc. Rotate to face threats before committing to a firing solution.</li>
+</ul>
+
+<hr class="divider">
+
+<p style="font-size:10px;color:var(--dim);text-align:center;margin-top:40px;">
+  Ironfields v2.7 — Tactical Hex Combat<br>
+  For support or feedback, visit the GitHub repository.
+</p>
+
+</main>
+
+</body>
+</html>
