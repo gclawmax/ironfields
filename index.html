@@ -1257,6 +1257,8 @@ function aiGeneratePlanV02() {
 
       const currentDist = hexDist(m, target);
 
+      console.log(`[AI-DEBUG] ${m.name}: dist=${currentDist} prefRange=${prefRange} mpAvail=${mpAvail} weapons=${weapons.length}`);
+
       // Face the enemy regardless of movement
       const canvasBearing = Math.atan2(target.wy - m.wy, target.wx - m.wx) * 180 / Math.PI;
       bestFacing = ((Math.round((canvasBearing + 90) / 30) * 30) % 360 + 360) % 360;
