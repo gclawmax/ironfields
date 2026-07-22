@@ -3290,10 +3290,10 @@ function astar(startWx, startWy, goalWx, goalWy, ignoreMechId = null) {
     open.delete(cur);
     const gc = g.get(cur) ?? Infinity;
     (vertNeighbours.get(cur) || []).forEach(nb => {
-      // COLLISION CHECK: Cannot pass through other active mechs
+      // COLLISION CHECK: Cannot pass through other active mechs, but allow stepping onto the goal
       const nbV = vertByKey.get(nb);
       const isBlocked = mechs.some(m =>
-        !m.destroyed && m.id !== ignoreMechId && vertKey(m.wx, m.wy) === nb
+        !m.destroyed && m.id !== ignoreMechId && vertKey(m.wx, m.wy) === nb && nb !== gk
       );
       if (isBlocked) return;
 
