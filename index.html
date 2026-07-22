@@ -2799,7 +2799,7 @@ const HS   = 23;
 const S3   = Math.sqrt(3);
 const COLS = 29;
 const ROWS = 21;
-const TMPL_R = HS * 0.97;  // coverage test radius — gives exactly 24 full tris
+const TMPL_R = HS * 4 / 3; // true circumradius = 1.5×TMPL_R = 2×HS, matching OUTLINE_R exactly
 const OUTLINE_R = HS * 2.0; // outline drawn radius — reaches outer vertices of covered triangles
 
 // ── STATE ────────────────────────────────────────────────────────
@@ -3276,7 +3276,7 @@ function inRotHex(px, py, cx, cy, R, rotDeg) {
 }
 
 function facingToCanvas(facingDeg) { return facingDeg - 90; }
-function templateRot(facingDeg) { return facingToCanvas(facingDeg); }
+function templateRot(facingDeg) { return facingToCanvas(facingDeg) + Math.PI / 6; }
 
 function getCoverage(mech) {
   const rot    = templateRot(mech.facing);
@@ -4283,7 +4283,7 @@ function drawOutlines() {
 
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
-      const a = Math.PI / 3 * i + rotRad + Math.PI / 6;
+      const a = Math.PI / 3 * i + rotRad;
       const px = cx + OUTLINE_R * Math.cos(a);
       const py = cy + OUTLINE_R * Math.sin(a);
       i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
