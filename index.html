@@ -3256,6 +3256,16 @@ function astar(startWx, startWy, goalWx, goalWy, ignoreMechId = null) {
   const gk = vertKey(goalWx,  goalWy);
   if (sk === gk) return [sk];
 
+  // DIAGNOSTIC: check if start/goal keys exist in the graph
+  if (!vertByKey.has(sk)) {
+    console.log(`[ASTAR-FAIL] start key ${sk} NOT in vertByKey (size=${vertByKey.size})`);
+    return null;
+  }
+  if (!vertByKey.has(gk)) {
+    console.log(`[ASTAR-FAIL] goal key ${gk} NOT in vertByKey (size=${vertByKey.size})`);
+    return null;
+  }
+
   const h = (k) => {
     const v = vertByKey.get(k);
     return Math.hypot(v.wx - goalWx, v.wy - goalWy) / HS;
