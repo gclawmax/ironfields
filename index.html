@@ -1145,6 +1145,7 @@ function aiGeneratePlanV01() {
         let wx = m.wx, wy = m.wy, spent = 0;
         const visited = [{ wx, wy }];
         const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        console.log(`[ASTAR] ${m.name}: path=${path ? 'YES(' + path.length + ')' : 'NULL'} target=(${target.wx},${target.wy})`);
         if (path && path.length > 1) {
           for (let step = 1; step < path.length; step++) {
             const vk   = path[step];
@@ -1276,6 +1277,7 @@ function aiGeneratePlanV02() {
         if (currentDist < prefRange * 1.5) {
           // Already in range — back up
           const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        console.log(`[ASTAR] ${m.name}: path=${path ? 'YES(' + path.length + ')' : 'NULL'} target=(${target.wx},${target.wy})`);
           if (path && path.length > 1) {
             // Reverse the path to go away from target
             const reversePath = path.slice().reverse();
@@ -1308,6 +1310,7 @@ function aiGeneratePlanV02() {
         let wx = m.wx, wy = m.wy, spent = 0;
         const visited = [{ wx, wy }];
         const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        console.log(`[ASTAR] ${m.name}: path=${path ? 'YES(' + path.length + ')' : 'NULL'} target=(${target.wx},${target.wy})`);
         if (path && path.length > 1) {
           for (let step = 1; step < path.length; step++) {
             const vk   = path[step];
@@ -1336,6 +1339,7 @@ function aiGeneratePlanV02() {
         // Move to a nearby vertex that gives a better angle or terrain advantage
         // (e.g., higher ground, cover, or a wider firing arc)
         const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        console.log(`[ASTAR] ${m.name}: path=${path ? 'YES(' + path.length + ')' : 'NULL'} target=(${target.wx},${target.wy})`);
 
         // Build candidate list from path and adjacent vertices
         const candidates = [];
@@ -1579,6 +1583,7 @@ function aiGeneratePlanV03() {
       if (shouldRetreat && currentDist < prefRange * 1.5) {
         // Retreat: move away from best target
         const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        console.log(`[ASTAR] ${m.name}: path=${path ? 'YES(' + path.length + ')' : 'NULL'} target=(${target.wx},${target.wy})`);
         if (path && path.length > 1) {
           const reversePath = path.slice().reverse();
           let wx = m.wx, wy = m.wy, spent = 0;
@@ -1610,6 +1615,7 @@ function aiGeneratePlanV03() {
         let wx = m.wx, wy = m.wy, spent = 0;
         const visited = [{ wx, wy }];
         const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        console.log(`[ASTAR] ${m.name}: path=${path ? 'YES(' + path.length + ')' : 'NULL'} target=(${target.wx},${target.wy})`);
         if (path && path.length > 1) {
           for (let step = 1; step < path.length; step++) {
             const vk = path[step];
@@ -1859,6 +1865,7 @@ function aiGeneratePlanV04() {
       if (panic > 0.5 && Math.random() < panic * 0.5) {
         // Panic movement: random walk
         const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        console.log(`[ASTAR] ${m.name}: path=${path ? 'YES(' + path.length + ')' : 'NULL'} target=(${target.wx},${target.wy})`);
         if (path && path.length > 1) {
           // Take a random step from the path (not toward or away, just random)
           const step = Math.floor(Math.random() * Math.min(path.length, 3));
@@ -1887,6 +1894,7 @@ function aiGeneratePlanV04() {
 
         if (shouldRetreat && currentDist < prefRange * 1.5) {
           const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        console.log(`[ASTAR] ${m.name}: path=${path ? 'YES(' + path.length + ')' : 'NULL'} target=(${target.wx},${target.wy})`);
           if (path && path.length > 1) {
             const reversePath = path.slice().reverse();
             let wx = m.wx, wy = m.wy, spent = 0;
@@ -1917,6 +1925,7 @@ function aiGeneratePlanV04() {
           let wx = m.wx, wy = m.wy, spent = 0;
           const visited = [{ wx, wy }];
           const path = astar(m.wx, m.wy, target.wx, target.wy, m.id);
+        console.log(`[ASTAR] ${m.name}: path=${path ? 'YES(' + path.length + ')' : 'NULL'} target=(${target.wx},${target.wy})`);
           if (path && path.length > 1) {
             for (let step = 1; step < path.length; step++) {
               const vk = path[step];
