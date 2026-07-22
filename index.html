@@ -4283,7 +4283,7 @@ function drawOutlines() {
 
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
-      const a = Math.PI / 3 * i + rotRad + Math.PI / 6;
+      const a = Math.PI / 3 * i + rotRad;
       const px = cx + OUTLINE_R * Math.cos(a);
       const py = cy + OUTLINE_R * Math.sin(a);
       i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
@@ -4341,17 +4341,22 @@ function drawFacingCones() {
     const { x: cx, y: cy } = w2c(mech.wx, mech.wy);
 
     // The "front edge" of the template hex is at angle facing.
-    // After switching to flat-top hexes (+30° rotation), the front flat edge
-    // midpoint is at facing - 60° canvas angle, bounded by corners at
-    // facing - 90° and facing - 30°.
-    // The cone spans ±30° from the flat edge midpoint.
+    // The two corners bounding that edge are at facing ± 30° from the template centre,
+    // but we define it as: the edge whose midpoint is at (facing - 90° + 90°) = facing.
+    // Template rotation = facing - 90°.
+    // In a flat-top hex (rot=0), the top edge midpoint is at 90°.
+    // Rotating by rot = facing - 90° moves the top edge midpoint to facing°.
+    //
+    // The two corners bounding the front edge:
+    //   corner A = facing - 30°  (from centre)
+    //   corner B = facing + 30°  (from centre)
+    // Both at distance TMPL_R.
 
     const fRad = facingToCanvas(mech.facing) * Math.PI / 180;
     const coneHalf = Math.PI / 6;   // 30°
 
-    // Flat-top hex: shift cone +30° so it aligns with the flat edge, not a corner
-    const aA = fRad;                    // facing - 90 (left corner of front flat edge)
-    const aB = fRad + coneHalf * 2;     // facing - 30 (right corner of front flat edge)
+    const aA  = fRad - coneHalf;
+    const aB  = fRad + coneHalf;
     const pAx = cx + OUTLINE_R * Math.cos(aA);
     const pAy = cy + OUTLINE_R * Math.sin(aA);
     const pBx = cx + OUTLINE_R * Math.cos(aB);
