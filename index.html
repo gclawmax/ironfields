@@ -973,12 +973,12 @@ function buildStartState() {
   const p1mechs = lancePicksP1.map((chassis, i) =>
     mkMech(`p1${String.fromCharCode(97+i)}`, 1,
            `LANCE-1${String.fromCharCode(65+i)}`,
-           chassis, 90, p1q, p1r0 + i * 4, PILOT_NAMES_P1[i] ?? `PILOT-1${i+1}`)
+           chassis, 60, p1q, p1r0 + i * 4, PILOT_NAMES_P1[i] ?? `PILOT-1${i+1}`)
   );
   const p2mechs = lancePicksP2.map((chassis, i) =>
     mkMech(`p2${String.fromCharCode(97+i)}`, 2,
            `LANCE-2${String.fromCharCode(65+i)}`,
-           chassis, 270, p2q, p2r0 + i * 4, PILOT_NAMES_P2[i] ?? `PILOT-2${i+1}`)
+           chassis, 240, p2q, p2r0 + i * 4, PILOT_NAMES_P2[i] ?? `PILOT-2${i+1}`)
   );
   return {
     turn: 1,
@@ -5574,18 +5574,19 @@ canvas.addEventListener('click', e => {
 
     let assignedCount = 0;
     selectedWeapons.forEach(wKey => {
-      const w  = WEAPONS[wKey];
-      const tn = calcToHit(attacker, near, w);
-      if (tn === null) {
-        addLog(attacker.name + ': ' + w.label + ' \u2014 NO SHOT on ' + near.name + ' (out of range or arc)', 'bad');
-        return;
-      }
-      // Replace any existing order for THIS weapon from this attacker
-      fireOrders = fireOrders.filter(fo => !(fo.attacker_id === selId && fo.weapon === wKey));
-      fireOrders.push({ attacker_id: selId, target_id: near.id, weapon: wKey });
-      addLog(attacker.name + ' \u2192 ' + near.name + ' : ' + w.label + '  [TN:' + tn + ']', 'ok');
-      assignedCount++;
-    });
+          const w  = WEAPONS[wKey];
+          const tn = calcToHit(attacker, near, w);
+          if (tn === null) {
+            addLog(attacker.name + ': ' + w.label + ' — NO SHOT on ' + near.name + ' (out of range or arc)', 'warn');
+          }
+          // Replace any existing order for THIS weapon from this attacker
+          fireOrders = fireOrders.filter(fo => !(fo.attacker_id === selId && fo.weapon === wKey));
+          fireOrders.push({ attacker_id: selId, target_id: near.id, weapon: wKey });
+          if (tn !== null) {
+            addLog(attacker.name + ' → ' + near.name + ' : ' + w.label + '  [TN:' + tn + ']', 'ok');
+          }
+          assignedCount++;
+        });
 
     if (assignedCount > 0) {
       selectedWeapons = []; // clear selection after successful volley assignment
