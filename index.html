@@ -2275,15 +2275,8 @@ async function submitPlan() {
     };
 
     // profile_id is uuid type — use a fixed sentinel UUID for the AI.
-    // Fire-and-forget persist; resolution runs from memory to avoid read-after-write race.
+    // Resolution runs from memory to avoid read-after-write race.
     const AI_UUID = '00000000-0000-0000-0000-000000000002';
-    db.from('ironfield_turn_plans')
-      .upsert({ game_id: gameId, profile_id: AI_UUID,
-                turn_number: turnNumber, plan: aiPlan },
-               { onConflict: 'game_id,profile_id,turn_number' })
-      .then(({ error }) => {
-        if (error) console.warn('AI plan persist (non-fatal):', error.message);
-      });
 
     enemyPlanSubmitted = true;
     updatePlanBar();
