@@ -4352,7 +4352,7 @@ function drawFacingCones() {
     //   corner B = facing + 30°  (from centre)
     // Both at distance TMPL_R.
 
-    const fRad = facingToCanvas(mech.facing) * Math.PI / 180;
+    const fRad = (facingToCanvas(mech.facing) + 30) * Math.PI / 180;
     const coneHalf = Math.PI / 6;   // 30°
 
     const aA  = fRad - coneHalf;
@@ -4387,7 +4387,7 @@ function drawFacingCones() {
     ctx.stroke();
 
     // Centre pilot avatar — small portrait circle
-    const avatarR  = isSel ? 9 : 6;
+    const avatarR  = isSel ? 11 : 8;
     const mechCol  = isP1 ? '#00ff88' : '#ff4444';
     // Draw backing circle first (synchronous)
     ctx.beginPath();
