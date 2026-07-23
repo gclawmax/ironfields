@@ -18,8 +18,9 @@ module.exports = defineConfig({
     }
   ],
   webServer: {
-    command: 'npx http-server ./ -p 3000',
+    command: 'npx http-server ./ -p 3000 --cors',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
+    timeout: 30000,
   },
 });
