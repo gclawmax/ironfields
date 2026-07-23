@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
       - name: Run Playwright tests
         run: npx playwright test --grep-invert "smoke"
     # If you add a separate smoke suite, comment out the grep-invert above
