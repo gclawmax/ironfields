@@ -423,18 +423,24 @@ function showSyncErr() {
 
 // ── AUTH ──────────────────────────────────────────────────────────
 async function initApp() {
-  const { data: { session } } = await db.auth.getSession();
-  if (session) {
-    currentUser = session.user;
-    await loadProfile(currentUser.id);
-    const saved = localStorage.getItem('ironfield_game_' + currentUser.id);
-    if (saved) {
-      const ok = await tryRejoin(saved);
-      if (ok) return;
-      localStorage.removeItem('ironfield_game_' + currentUser.id);
+  try {
+    const { data: { session } } = await db.auth.getSession();
+    if (session) {
+      currentUser = session.user;
+      await loadProfile(currentUser.id);
+      const saved = localStorage.getItem('ironfield_game_' + currentUser.id);
+      if (saved) {
+        const ok = await tryRejoin(saved);
+        if (ok) return;
+        localStorage.removeItem('ironfield_game_' + currentUser.id);
+      }
+      showScreen('scr-lobby');
+    } else {
+      showScreen('scr-auth');
     }
-    showScreen('scr-lobby');
-  } else {
+  } catch (err) {
+    // Supabase unreachable — fall back to auth screen so UI stays usable
+    console.error('initApp error, falling back to auth:', err);
     showScreen('scr-auth');
   }
 }
