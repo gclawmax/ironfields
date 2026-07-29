@@ -3988,7 +3988,7 @@ function resolveFire(attacker, target, weaponKey) {
   if (weapon.type === 'laser' || weapon.type === 'laser_pulse') {
     const roll = roll3d6();
     const hit  = roll.total >= tn;
-    lines.push(`${header} — rolled ${roll.total}${roll.doubles?'*':''} → ${hit?'HIT':'MISS'}`);
+    lines.push(`${header} — ${diceStr}${roll.doubles?' (DOUBLES - penetrating shot!)':''} → ${hit?'HIT':'MISS'}`);
     if (hit) {
       const loc   = HIT_LOC[roll3d6().total];
       const dmg   = weapon.damage + (roll.doubles ? 1 : 0);
@@ -4012,7 +4012,7 @@ function resolveFire(attacker, target, weaponKey) {
   } else if (weapon.type === 'ballistic') {
     const roll = roll3d6();
     const hit  = roll.total >= tn;
-    lines.push(`${header} — rolled ${roll.total}${roll.doubles?'*':''} → ${hit?'HIT':'MISS'}`);
+    lines.push(`${header} — ${diceStr}${roll.doubles?' (DOUBLES - penetrating shot!)':''} → ${hit?'HIT':'MISS'}`);
     if (hit) {
       const loc         = HIT_LOC[roll3d6().total];
       const penetrating = roll.doubles;
@@ -5803,6 +5803,22 @@ document.addEventListener('keydown', e => {
     case 'h': togFlag('half'); break;
     case 'o': togFlag('out'); break;
     case 'v': togFlag('verts'); break;
+    // Weapon hotkeys: number keys 1-9 select weapons by index (when in fire mode)
+    case '1': case '2': case '3': case '4': case '5':
+    case '6': case '7': case '8': case '9':
+      if (mode !== 'fire') break;
+      const idx = parseInt(e.key) - 1;
+      const cls = MECH_CLASSES[m.cls];
+      const weapons = (cls?.weapons ?? []).filter(wk => !mechWeaponDisabled(m, wk));
+      if (idx < weapons.length) {
+        const wKey = weapons[idx];
+        if (!selectedWeapons.includes(wKey)) {
+          selectedWeapons.push(wKey);
+          addLog(m.name + ': selected ' + WEAPONS[wKey].label + ' [key ' + e.key + ']');
+        }
+        updateWeaponPicker(m); buildRoster(); draw();
+      }
+      break;
   }
 });
 
