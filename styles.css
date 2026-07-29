@@ -547,6 +547,86 @@
     border-top: 1px solid var(--bdr);
     padding-top: 5px;
   }
+  /* Physical layout: mimics mech silhouette */
+  .mc-armor-grid-physical {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    margin-top: 6px;
+    border-top: 1px solid var(--bdr);
+    padding-top: 5px;
+  }
+  .mc-armor-physical-row {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+  }
+  /* Head centered */
+  .mc-armor-physical-head .mc-armor-physical-cell {
+    flex: 1;
+    max-width: 80px;
+  }
+  /* Torso: 3 cells */
+  .mc-armor-physical-torso {
+    gap: 3px;
+  }
+  .mc-armor-physical-torso .mc-armor-physical-cell {
+    flex: 1;
+    max-width: 60px;
+  }
+  /* Arms: 2 cells with gap for body */
+  .mc-armor-physical-arms {
+    gap: 12px;
+  }
+  .mc-armor-physical-arms .mc-armor-physical-cell {
+    flex: 1;
+    max-width: 60px;
+  }
+  /* Legs: 2 cells with gap for body */
+  .mc-armor-physical-legs {
+    gap: 12px;
+  }
+  .mc-armor-physical-legs .mc-armor-physical-cell {
+    flex: 1;
+    max-width: 60px;
+  }
+  .mc-armor-physical-cell {
+    font-size: 7px;
+    text-align: center;
+    line-height: 1.1;
+    padding: 2px 1px;
+    background: rgba(0,255,136,0.03);
+    border: 1px solid var(--bdr);
+    border-radius: 2px;
+  }
+  .mc-armor-physical-cell.crit {
+    border-color: var(--red);
+    background: rgba(255,0,0,0.05);
+  }
+  .mc-armor-physical-cell .mc-armor-label {
+    color: var(--dim);
+    display: block;
+    margin-bottom: 1px;
+    font-size: 6px;
+    letter-spacing: 1px;
+  }
+  .mc-armor-physical-cell .mc-armor-bar {
+    display: block;
+    height: 5px;
+    background: var(--phd);
+    border-radius: 1px;
+    margin: 1px 0;
+    min-width: 2px;
+  }
+  .mc-armor-physical-cell.crit .mc-armor-bar {
+    background: var(--red);
+  }
+  .mc-armor-physical-cell .mc-armor-struct {
+    color: var(--dim);
+    font-size: 6px;
+    display: block;
+  }
   .mc-armor-cell {
     font-size: 7px;
     text-align: center;

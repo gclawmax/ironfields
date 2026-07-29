@@ -5373,22 +5373,70 @@ function buildRoster() {
       '<span style="color:' + skillColor + ';font-size:var(--log-size);">GUN:' + gStr + '  PIL:' + pStr + '</span>' +
       '</div>';
 
-    // Detailed Armor Grid
-    let armorGridHtml = '<div class="mc-armor-grid">';
-    const locMap = { 'H':'head', 'CT':'ct', 'LT':'lt', 'RT':'rt', 'LA':'la', 'RA':'ra', 'LL':'ll', 'RL':'rl' };
-    ['H','CT','LT','RT','LA','RA','LL','RL'].forEach(loc => {
-      const dbKey = locMap[loc];
-      const cur = armour?.[dbKey] ?? 0;
-      const max = baseArm?.[dbKey] ?? 1;
-      const curStr = structure?.[dbKey] ?? 0;
-      const maxStr = baseStr?.[dbKey] ?? 1;
-      const isCrit = cur === 0 || curStr < maxStr;
-      armorGridHtml += `<div class="mc-armor-cell ${isCrit?'crit':''}">
-        <span class="loc">${loc}</span>
-        <span class="val">${cur}/${max}</span>
-        <span class="val" style="color:var(--dim);font-size:var(--log-size);display:block;">${curStr}/${maxStr}</span>
+    // Physical layout: Head on top, then LT/CT/RT, then LA/RA, then LL/RL
+    let armorGridHtml = '<div class="mc-armor-grid-physical">';
+    // Head row
+    const headArm = armour?.head ?? baseArm?.head ?? 0;
+    const headStr = structure?.head ?? baseStr?.head ?? 0;
+    armorGridHtml += `<div class="mc-armor-physical-row mc-armor-physical-head">
+      <div class="mc-armor-physical-cell" title="Head">
+        <div class="mc-armor-label">HEAD</div>
+        <div class="mc-armor-bar" style="width:${baseArm?.head > 0 ? (headArm / baseArm.head * 100) : 0}%">${headArm}</div>
+        <div class="mc-armor-struct">${headStr}/${baseStr?.head ?? 0}</div>
+      </div>
+    </div>`;
+    // Torso row (Left/Center/Right)
+    armorGridHtml += '<div class="mc-armor-physical-row mc-armor-physical-torso">';
+    ['lt', 'ct', 'rt'].forEach(loc => {
+      const label = loc === 'lt' ? 'LT' : loc === 'ct' ? 'CT' : 'RT';
+      const dbKey = loc === 'ct' ? 'torso' : loc;
+      const curArm = armour?.[dbKey] ?? baseArm?.[dbKey] ?? 0;
+      const baseArmVal = baseArm?.[dbKey] ?? 0;
+      const curStr = structure?.[dbKey] ?? baseStr?.[dbKey] ?? 0;
+      const maxStr = (loc === 'ct' ? (baseStr?.torso ?? 0) * 2 : baseStr?.[dbKey] ?? 0);
+      const armPct = baseArmVal > 0 ? (curArm / baseArmVal * 100) : 0;
+      const isCrit = curArm <= 0 && baseArmVal > 0;
+      armorGridHtml += `<div class="mc-armor-physical-cell ${isCrit?'crit':''}" title="${label}">
+        <div class="mc-armor-label">${label}</div>
+        <div class="mc-armor-bar" style="width:${armPct}%">${curArm}</div>
+        <div class="mc-armor-struct">${curStr}/${maxStr}</div>
       </div>`;
     });
+    armorGridHtml += '</div>';
+    // Arms row (Left/Right)
+    armorGridHtml += '<div class="mc-armor-physical-row mc-armor-physical-arms">';
+    ['la', 'ra'].forEach(side => {
+      const label = side === 'la' ? 'LA' : 'RA';
+      const curArm = armour?.[side] ?? baseArm?.[side] ?? 0;
+      const baseArmVal = baseArm?.[side] ?? 0;
+      const curStr = structure?.[side] ?? baseStr?.[side] ?? 0;
+      const maxStr = baseStr?.[side] ?? 0;
+      const armPct = baseArmVal > 0 ? (curArm / baseArmVal * 100) : 0;
+      const isCrit = curArm <= 0 && baseArmVal > 0;
+      armorGridHtml += `<div class="mc-armor-physical-cell ${isCrit?'crit':''}" title="${label}">
+        <div class="mc-armor-label">${label}</div>
+        <div class="mc-armor-bar" style="width:${armPct}%">${curArm}</div>
+        <div class="mc-armor-struct">${curStr}/${maxStr}</div>
+      </div>`;
+    });
+    armorGridHtml += '</div>';
+    // Legs row (Left/Right)
+    armorGridHtml += '<div class="mc-armor-physical-row mc-armor-physical-legs">';
+    ['ll', 'rl'].forEach(side => {
+      const label = side === 'll' ? 'LL' : 'RL';
+      const curArm = armour?.[side] ?? baseArm?.[side] ?? 0;
+      const baseArmVal = baseArm?.[side] ?? 0;
+      const curStr = structure?.[side] ?? baseStr?.[side] ?? 0;
+      const maxStr = baseStr?.[side] ?? 0;
+      const armPct = baseArmVal > 0 ? (curArm / baseArmVal * 100) : 0;
+      const isCrit = curArm <= 0 && baseArmVal > 0;
+      armorGridHtml += `<div class="mc-armor-physical-cell ${isCrit?'crit':''}" title="${label}">
+        <div class="mc-armor-label">${label}</div>
+        <div class="mc-armor-bar" style="width:${armPct}%">${curArm}</div>
+        <div class="mc-armor-struct">${curStr}/${maxStr}</div>
+      </div>`;
+    });
+    armorGridHtml += '</div>';
     armorGridHtml += '</div>';
 
     // Weapons List
@@ -5543,6 +5591,55 @@ canvas.addEventListener('mousemove', e => {
     const heatCap = mechHeatCap(mHover);
     const hPct    = Math.min(100, heatVal / heatCap * 100);
     const hCol    = hPct > 75 ? '#ff6600' : hPct > 50 ? '#ffaa00' : '#3399ff';
+    
+    // Physical armor grid for enemy hover
+    let enemyArmorHtml = '<div class="mc-armor-grid-physical">';
+    // Head
+    const hArm = mHover.armour?.head ?? 0;
+    const hStr = structure?.head ?? baseStr?.head ?? 0;
+    const hMax = baseArm?.head ?? 0;
+    enemyArmorHtml += '<div class="mc-armor-physical-row mc-armor-physical-head"><div class="mc-armor-physical-cell" title="Head"><div class="mc-armor-label">HEAD</div><div class="mc-armor-bar" style="width:' + (hMax > 0 ? (hArm / hMax * 100) : 0) + '%">' + hArm + '</div><div class="mc-armor-struct">' + hStr + '/' + (baseStr?.head ?? 0) + '</div></div></div>';
+    // Torso
+    enemyArmorHtml += '<div class="mc-armor-physical-row mc-armor-physical-torso">';
+    ['lt', 'ct', 'rt'].forEach(loc => {
+      const label = loc === 'lt' ? 'LT' : loc === 'ct' ? 'CT' : 'RT';
+      const dbKey = loc === 'ct' ? 'torso' : loc;
+      const cArm = mHover.armour?.[dbKey] ?? 0;
+      const bArm = baseArm?.[dbKey] ?? 0;
+      const cStr = structure?.[dbKey] ?? baseStr?.[dbKey] ?? 0;
+      const maxS = (loc === 'ct' ? (baseStr?.torso ?? 0) * 2 : baseStr?.[dbKey] ?? 0);
+      const armPct = bArm > 0 ? (cArm / bArm * 100) : 0;
+      const isCrit = cArm <= 0 && bArm > 0;
+      enemyArmorHtml += '<div class="mc-armor-physical-cell ' + (isCrit?'crit':'') + '" title="' + label + '"><div class="mc-armor-label">' + label + '</div><div class="mc-armor-bar" style="width:' + armPct + '%">' + cArm + '</div><div class="mc-armor-struct">' + cStr + '/' + maxS + '</div></div>';
+    });
+    enemyArmorHtml += '</div>';
+    // Arms
+    enemyArmorHtml += '<div class="mc-armor-physical-row mc-armor-physical-arms">';
+    ['la', 'ra'].forEach(side => {
+      const label = side === 'la' ? 'LA' : 'RA';
+      const cArm = mHover.armour?.[side] ?? 0;
+      const bArm = baseArm?.[side] ?? 0;
+      const cStr = structure?.[side] ?? baseStr?.[side] ?? 0;
+      const maxS = baseStr?.[side] ?? 0;
+      const armPct = bArm > 0 ? (cArm / bArm * 100) : 0;
+      const isCrit = cArm <= 0 && bArm > 0;
+      enemyArmorHtml += '<div class="mc-armor-physical-cell ' + (isCrit?'crit':'') + '" title="' + label + '"><div class="mc-armor-label">' + label + '</div><div class="mc-armor-bar" style="width:' + armPct + '%">' + cArm + '</div><div class="mc-armor-struct">' + cStr + '/' + maxS + '</div></div>';
+    });
+    enemyArmorHtml += '</div>';
+    // Legs
+    enemyArmorHtml += '<div class="mc-armor-physical-row mc-armor-physical-legs">';
+    ['ll', 'rl'].forEach(side => {
+      const label = side === 'll' ? 'LL' : 'RL';
+      const cArm = mHover.armour?.[side] ?? 0;
+      const bArm = baseArm?.[side] ?? 0;
+      const cStr = structure?.[side] ?? baseStr?.[side] ?? 0;
+      const maxS = baseStr?.[side] ?? 0;
+      const armPct = bArm > 0 ? (cArm / bArm * 100) : 0;
+      const isCrit = cArm <= 0 && bArm > 0;
+      enemyArmorHtml += '<div class="mc-armor-physical-cell ' + (isCrit?'crit':'') + '" title="' + label + '"><div class="mc-armor-label">' + label + '</div><div class="mc-armor-bar" style="width:' + armPct + '%">' + cArm + '</div><div class="mc-armor-struct">' + cStr + '/' + maxS + '</div></div>';
+    });
+    enemyArmorHtml += '</div>';
+    enemyArmorHtml += '</div>';
 
     tip.innerHTML = `
       <div class="hud-title" style="color:${pCol}">
@@ -5560,6 +5657,8 @@ canvas.addEventListener('mousemove', e => {
       
       <div class="hud-row"><span>HEAT</span><span style="color:${hCol}">${heatVal}/${heatCap}</span></div>
       <div class="hud-bar-wrap"><div class="hud-bar-fill" style="width:${hPct}%; background:${hCol};"></div></div>
+      
+      ${enemyArmorHtml}
       
       <div style="font-size:7px; color:var(--dim); text-align:center; margin-top:4px; letter-spacing:1px;">
         ${mHover.destroyed ? 'UNIT ELIMINATED' : isEnemy ? 'HOSTILE UNIT' : 'FRIENDLY UNIT'}
