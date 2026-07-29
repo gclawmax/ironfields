@@ -383,6 +383,10 @@
       border-bottom:1px solid rgba(128,128,128,0.08);line-height:1.5;}
   .le .ts{color:var(--dim);opacity:0.7;margin-right:4px;}
   .le.ok{color:var(--phd);} .le.bad{color:var(--red);}
+  .le.match-info{font-size:14px;font-weight:bold;color:var(--amb);
+      padding:4px 6px;border-bottom:1px solid rgba(255,170,0,0.3);
+      text-shadow:0 0 8px rgba(255,170,0,0.2);}
+  .le.match-info .ts{display:none;}
   .tip{
     position:absolute;background:rgba(4,8,5,.97);border:1px solid var(--bdr);
     padding:3px 8px;font-size:9px;color:var(--dim);
@@ -695,8 +699,10 @@
   @keyframes pulse{50%{opacity:.3;}}
 
   /* user bar in header */
-  .userbar{display:flex;align-items:center;gap:10px;font-size:9px;color:var(--dim);}
-  .userbar b{color:var(--ph);font-weight:normal;}
+  .userbar{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--dim);}
+  .userbar b{color:var(--ph);font-weight:normal;font-size:14px;}
+  .userbar #hPlayers{color:var(--amb);font-weight:bold;font-size:14px;}
+  .userbar #hUser{font-weight:bold;}
 
   /* plan submission bar */
   .planbar{

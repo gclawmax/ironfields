@@ -1109,7 +1109,7 @@ async function startVsAIWithDifficulty() {
   showSynced();
   startStateCache = startState;
   enterGame();
-  addLog('VS AI MODE — you are Player 1. The AI controls Player 2.', 'ok');
+  addLog('VS AI MODE — you are Player 1. The AI controls Player 2.', 'match-info');
   await logEvent('start');
 }
 
@@ -2659,6 +2659,35 @@ function loadStateFromGame(state) {
   elevationTiles = state.elevation ?? {};
   if (state.lancePicks?.p1) lancePicksP1 = state.lancePicks.p1;
   if (state.lancePicks?.p2) lancePicksP2 = state.lancePicks.p2;
+  // Pre-generate pilot avatar images (synchronous, no flicker on mouse move)
+  preGenerateAvatars();
+}
+
+// ── PRE-GENERATE PILOT AVATARS ────────────────────────────────────
+function preGenerateAvatars() {
+  // Unique pilot names from loaded mechs
+  const pilots = [...new Set(mechs.map(m => m.pilotName))];
+  const players = [...new Set(mechs.map(m => m.player))];
+  const avatarSizes = [20, 24, 28, 32]; // radii * 2 for various mech sizes
+  
+  for (const pilot of pilots) {
+    for (const player of players) {
+      const color = player === 1 ? '#00ff88' : '#ff4444';
+      for (const size of avatarSizes) {
+        const key = `${pilot}_${color}_${size}`;
+        if (pilotAvatarPool[key]) continue; // already generated
+        const svgStr = pilotAvatarSVG(pilot, size, color);
+        const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          pilotAvatarPool[key] = img;
+          URL.revokeObjectURL(url);
+        };
+        img.src = url;
+      }
+    }
+  }
 }
 
 // ── UPDATE PLAYER NAMES IN HEADER ───────────────────────────────
@@ -2706,6 +2735,9 @@ function enterGame() {
     const gridEl  = document.getElementById('grid');
     gridEl.width  = rect.width;
     gridEl.height = rect.height;
+    // Sync off-screen canvas dimensions
+    offCanvas.width  = rect.width;
+    offCanvas.height = rect.height;
     // Centre the view on the middle of the battlefield
     const gw = HS * 1.5 * (COLS - 1) + HS * 2;
     const gh = HS * S3 * ROWS;
@@ -2844,6 +2876,12 @@ const carea  = document.getElementById('carea');
 const wc     = document.getElementById('wheel');
 const wctx   = wc.getContext('2d');
 
+// ── OFF-SCREEN CANVAS (prevents async image flicker on mouse move) ──
+const offCanvas = document.createElement('canvas');
+offCanvas.width  = canvas.width;
+offCanvas.height = canvas.height;
+const offCtx = offCanvas.getContext('2d');
+
 // ── CONFIG ───────────────────────────────────────────────────────
 const HS   = 23;
 const S3   = Math.sqrt(3);
@@ -2882,6 +2920,8 @@ let weaponLabelsHover  = localStorage.getItem('if_wp_hover') !== '0'; // default
 let selectedTerrainType = 'woods_light';  // terrain type currently selected in editor
 let selectedElevationMode = false;        // true = painting elevation, false = painting terrain type
 let selectedElevationLevel = 1;          // 0=LOW 1=MID 2=HIGH — level to paint
+// Pre-generated pilot avatar image pool (keyed by pilotName → Image object)
+let pilotAvatarPool = {};
 
 // ── BLACKBOARD (Phase 2 AI Architecture) ────────────────────────────
 // Central state database for AI reasoning. Populated each turn from
@@ -4123,7 +4163,12 @@ function enterPlanningPhase() {
 
 // ── DRAW ─────────────────────────────────────────────────────────
 function draw() {
+  // ── Use off-screen canvas to prevent async image flicker ──
+  // Copy the persisted frame from off-screen canvas (has pilot images)
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(offCanvas, 0, 0);
+  
+  // Redraw dynamic overlays on top (hover effects, paths, etc.)
   ctx.fillStyle = '#060a07';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = 'rgba(0,255,136,0.022)';
@@ -4142,6 +4187,8 @@ function draw() {
   drawLOS();
   drawFireOrders();
   // Deployment phase: dim the battlefield outside each player's own zone
+  // Save rendered frame to off-screen canvas (preserves async-loaded pilot images)
+  offCtx.drawImage(canvas, 0, 0);
 }
 
 function drawFireOrders() {
@@ -5184,12 +5231,26 @@ function pilotAvatarSVG(pilotName, size, playerColor) {
 
 // Draw the pilot avatar on the canvas at (cx, cy), radius r
 function drawPilotAvatar(mechX, mechY, radius, pilotName, playerColor) {
+  // ── Use pre-generated pool (synchronous, no flicker) ──
+  const key = `${pilotName}_${playerColor}_${Math.round(radius * 2)}`;
+  if (pilotAvatarPool[key]) {
+    const img = pilotAvatarPool[key];
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(mechX, mechY, radius, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(img, mechX - radius, mechY - radius, radius * 2, radius * 2);
+    ctx.restore();
+    return;
+  }
+  // Fallback: generate on-demand (first time for unknown pilot)
   const size   = Math.round(radius * 2);
   const svgStr = pilotAvatarSVG(pilotName, size, playerColor);
   const blob   = new Blob([svgStr], { type: 'image/svg+xml' });
   const url    = URL.createObjectURL(blob);
   const img    = new Image();
   img.onload = () => {
+    pilotAvatarPool[key] = img; // cache for future draws
     ctx.save();
     ctx.beginPath();
     ctx.arc(mechX, mechY, radius, 0, Math.PI * 2);
